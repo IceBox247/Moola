@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
 import { authed, unauthorized, badRequest, userResponse } from '@/lib/api';
 import { sql, credit, getUser } from '@/lib/db';
-import { nftById, levelForEarnings } from '@/lib/config';
+import { nftById, levelForHoldings } from '@/lib/config';
+import { heldMoola } from '@/lib/state';
 import { ownedSet } from '@/lib/state';
 
 export const runtime = 'nodejs';
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (def.unlock === 'level') {
-    const level = levelForEarnings(u.lifetime);
+    const level = levelForHoldings(heldMoola(u));
     if (level < (def.requiredLevel ?? 1)) return badRequest(`reach level ${def.requiredLevel} first`);
   } else if (def.unlock === 'mint') {
     const cost = def.costMoola ?? 0;

@@ -8,6 +8,27 @@ export const links = {
 
 export const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME || 'MoolaMiningBot';
 
+/** Public jetton addresses for buy links (client-side). */
+export const MOOLA_JETTON = process.env.NEXT_PUBLIC_MOOLA_JETTON || '';
+export const ATF_JETTON = process.env.NEXT_PUBLIC_ATF_JETTON || '';
+
+/** STON.fi swap deep link to buy MOOLA with TON, optionally prefilling the amount. */
+export function stonfiBuyMoola(amountMoola?: number): string {
+  const p = new URLSearchParams();
+  p.set('ft', 'TON');
+  if (MOOLA_JETTON) p.set('tt', MOOLA_JETTON);
+  if (amountMoola && amountMoola > 0) p.set('ta', String(Math.ceil(amountMoola)));
+  return `https://app.ston.fi/swap?${p.toString()}`;
+}
+
+/** STON.fi swap deep link to buy ATF with TON. */
+export function stonfiBuyAtf(): string {
+  const p = new URLSearchParams();
+  p.set('ft', 'TON');
+  if (ATF_JETTON) p.set('tt', ATF_JETTON);
+  return `https://app.ston.fi/swap?${p.toString()}`;
+}
+
 export function socialLink(kind: string): string {
   switch (kind) {
     case 'partner':

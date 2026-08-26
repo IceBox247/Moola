@@ -29,8 +29,10 @@ export type PublicUser = {
 
   balance: number;
   lifetime: number;
+  held: number;
 
   level: number;
+  maxLevel: number;
   toNextLevel: number;
   levelFloor: number;
   levelCeil: number;
@@ -38,6 +40,10 @@ export type PublicUser = {
   dailyYield: number;
   hashrate: number;
   boostPct: number;
+
+  atfUsd: number;
+  atfMult: number;
+  moolaOnchain: number;
 
   activeNft: string;
   activeNftImage: string;

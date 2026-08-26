@@ -7,6 +7,9 @@ import { useStore } from '@/lib/store';
 import { AnimatedNumber, ProgressBar } from '@/components/ui';
 import { fmt, countdown } from '@/lib/format';
 import { WalletChip } from '@/components/WalletChip';
+import { LevelsModal } from '@/components/LevelsModal';
+import { openLink } from '@/lib/telegram';
+import { stonfiBuyAtf } from '@/lib/links';
 import { haptic, notify } from '@/lib/telegram';
 import { enableAudio, moo, blip } from '@/lib/sound';
 import type { PublicUser } from '@/lib/types';
@@ -24,6 +27,7 @@ function useNow(active: boolean) {
 export function MineScreen() {
   const { user, act, toast } = useStore();
   const [helpOpen, setHelpOpen] = useState(false);
+  const [levelsOpen, setLevelsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const mining = user!.mining;
   const now = useNow(mining.active);
@@ -40,7 +44,7 @@ export function MineScreen() {
   const sessionPct = mining.active ? (1 - Math.max(0, remaining) / mining.sessionMs) * 100 : 0;
   const levelPct =
     user!.levelCeil > user!.levelFloor
-      ? ((user!.lifetime - user!.levelFloor) / (user!.levelCeil - user!.levelFloor)) * 100
+      ? ((user!.held - user!.levelFloor) / (user!.levelCeil - user!.levelFloor)) * 100
       : 100;
 
   async function onMainButton() {
@@ -73,7 +77,9 @@ export function MineScreen() {
         <div>
           <h1 className="text-2xl font-black leading-tight">{u.firstName}</h1>
           <div className="mt-1 flex items-center gap-2">
-            <span className="chip bg-white/8 text-white/80">Lvl {u.level}</span>
+            <button onClick={() => setLevelsOpen(true)} className="chip bg-white/8 text-white/80">
+              Lvl {u.level} ›
+            </button>
             <span className="flex items-center gap-1.5 text-xs font-semibold text-white/50">
               <span
                 className={`h-2 w-2 rounded-full ${mining.active ? 'bg-moo-400 shadow-neon' : 'bg-white/30'}`}
@@ -117,23 +123,42 @@ export function MineScreen() {
               </span>
               <span className="text-[11px] text-white/45">{mining.active ? 'mining live' : 'idle'}</span>
             </div>
+
+            {/* ATF partnership boost */}
+            <div className="mt-2 flex justify-center">
+              {u.atfMult > 1 ? (
+                <span className="chip border border-gold-400/40 bg-gold-500/[0.1] text-gold-300">
+                  ⚡ {u.atfMult}× ATF boost active
+                </span>
+              ) : (
+                <button
+                  onClick={() => {
+                    haptic('light');
+                    openLink(stonfiBuyAtf());
+                  }}
+                  className="chip border border-white/12 bg-white/[0.05] text-white/60"
+                >
+                  🤝 Hold ATF for up to 64× boost ›
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="relative mt-4 grid grid-cols-3 gap-2">
-            <Stat label="Per day" value={`${u.dailyYield}`} />
+            <Stat label="Per day" value={fmt(u.dailyYield, 2)} />
             <Stat label="Hashrate" value={`${u.hashrate}`} sub="TH/s" />
-            <Stat label="Boost" value={`+${u.boostPct}%`} gold />
+            <Stat label="NFT boost" value={`+${u.boostPct}%`} gold />
           </div>
 
-          <div className="relative mt-4">
+          <button onClick={() => setLevelsOpen(true)} className="relative mt-4 block w-full text-left">
             <div className="mb-1.5 flex items-center justify-between text-[11px]">
-              <span className="chip bg-white/8 text-white/70">Lvl {u.level}</span>
+              <span className="chip bg-white/8 text-white/70">Lvl {u.level} ›</span>
               <span className="text-white/45">
                 <span className="neon-text font-bold">{fmt(u.toNextLevel, 2)}</span> to Lvl {u.level + 1}
               </span>
             </div>
             <ProgressBar pct={levelPct} />
-          </div>
+          </button>
         </div>
       </div>
 
@@ -256,6 +281,8 @@ export function MineScreen() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <LevelsModal open={levelsOpen} onClose={() => setLevelsOpen(false)} />
     </div>
   );
 }

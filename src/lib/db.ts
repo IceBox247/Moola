@@ -52,6 +52,9 @@ export type UserRow = {
   ads_all_bonus_day: string | null;
   referred_by: string | null;
   ref_first_done: boolean;
+  atf_usd: number;
+  atf_mult: number;
+  moola_onchain: number;
   created_at: number;
 };
 
@@ -107,6 +110,10 @@ async function initSchema(): Promise<void> {
     );
   `;
   await sql`CREATE INDEX IF NOT EXISTS idx_tx_user ON transactions(user_id, created_at DESC);`;
+  // On-chain wallet scan results (added post-launch — safe on existing tables).
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS atf_usd DOUBLE PRECISION NOT NULL DEFAULT 0;`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS atf_mult DOUBLE PRECISION NOT NULL DEFAULT 1;`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS moola_onchain DOUBLE PRECISION NOT NULL DEFAULT 0;`;
   await sql`
     CREATE TABLE IF NOT EXISTS withdrawals (
       id         BIGSERIAL PRIMARY KEY,
@@ -149,6 +156,9 @@ function rowToUser(r: Record<string, unknown>): UserRow {
     ads_all_bonus_day: (r.ads_all_bonus_day as string) ?? null,
     referred_by: (r.referred_by as string) ?? null,
     ref_first_done: Boolean(r.ref_first_done),
+    atf_usd: r.atf_usd != null ? Number(r.atf_usd) : 0,
+    atf_mult: r.atf_mult != null ? Number(r.atf_mult) : 1,
+    moola_onchain: r.moola_onchain != null ? Number(r.moola_onchain) : 0,
     created_at: Number(r.created_at),
   };
 }

@@ -7,7 +7,13 @@ export const env = {
   BOT_TOKEN: process.env.BOT_TOKEN ?? '',
   BOT_USERNAME: process.env.NEXT_PUBLIC_BOT_USERNAME ?? 'MoolaMiningBot',
   ALLOW_DEV_AUTH: process.env.ALLOW_DEV_AUTH === '1' || !process.env.BOT_TOKEN,
+  // On-chain jetton master addresses (fill these to activate boost detection).
+  ATF_JETTON: process.env.ATF_JETTON_ADDRESS ?? '',
+  MOOLA_JETTON: process.env.MOOLA_JETTON_ADDRESS ?? '',
+  TONAPI_KEY: process.env.TONAPI_KEY ?? '',
 };
+
+export const MAX_LEVEL = 800;
 
 export const game = {
   currency: 'MOOLA',
@@ -15,14 +21,28 @@ export const game = {
   mining: {
     sessionHours: 8,
     baseDailyYield: 10, // MOOLA/day at level 1
-    yieldPerLevel: 6,
+    growthPerLevel: 1.0065, // daily yield compounds per level up to MAX_LEVEL
     baseHashrate: 0.2, // TH/s (cosmetic)
-    hashratePerLevel: 0.15,
+    hashratePerLevel: 0.009,
   },
 
+  // Levels are driven by how much MOOLA you HOLD (like ATF's required-holding).
   leveling: {
-    baseThreshold: 100, // lifetime MOOLA for level 1 -> 2
-    growth: 1.6,
+    baseHold: 50, // MOOLA held for level 1 -> 2
+    holdGrowth: 1.0075, // required holding compounds per level
+  },
+
+  // ATF partnership: hold ATF in your connected wallet for a mining multiplier.
+  // Boost is pure mining power, applied on top of your level, regardless of it.
+  atfBoost: {
+    tiers: [
+      { minUsd: 0.5, maxUsd: 2, mult: 2 },
+      { minUsd: 2, maxUsd: 10, mult: 4 },
+      { minUsd: 10, maxUsd: 25, mult: 8 },
+      { minUsd: 25, maxUsd: 50, mult: 16 },
+      { minUsd: 50, maxUsd: 100, mult: 32 },
+      { minUsd: 100, maxUsd: Infinity, mult: 64 },
+    ],
   },
 
   checkin: {
@@ -220,36 +240,47 @@ export function nftById(id: string): NftDef | undefined {
   return nfts.find((n) => n.id === id);
 }
 
-/** Lifetime-earnings threshold required to be at a given level. */
-export function levelThreshold(level: number): number {
+/** MOOLA you must HOLD to be at a given level (1..MAX_LEVEL). Level 1 = 0. */
+export function requiredMoola(level: number): number {
   if (level <= 1) return 0;
-  const { baseThreshold, growth } = game.leveling;
-  let total = 0;
-  let step: number = baseThreshold;
-  for (let l = 1; l < level; l++) {
-    total += step;
-    step = Math.round(step * growth);
-  }
-  return total;
+  const n = Math.min(MAX_LEVEL, level);
+  const { baseHold, holdGrowth } = game.leveling;
+  return Math.round(baseHold * (n - 1) * Math.pow(holdGrowth, n - 1));
 }
 
-export function levelForEarnings(lifetime: number): number {
+/** Highest level whose required holding is covered by `held` MOOLA. */
+export function levelForHoldings(held: number): number {
   let level = 1;
-  while (lifetime >= levelThreshold(level + 1)) level++;
+  while (level < MAX_LEVEL && held >= requiredMoola(level + 1)) level++;
   return level;
 }
 
-export function toNextLevel(lifetime: number): number {
-  const level = levelForEarnings(lifetime);
-  return Math.max(0, levelThreshold(level + 1) - lifetime);
+/** MOOLA still needed to reach the next level (0 at max). */
+export function toNextLevel(held: number): number {
+  const level = levelForHoldings(held);
+  if (level >= MAX_LEVEL) return 0;
+  return Math.max(0, requiredMoola(level + 1) - held);
 }
 
-export function dailyYield(level: number, boostPct = 0): number {
-  const base = game.mining.baseDailyYield + (level - 1) * game.mining.yieldPerLevel;
-  return +(base * (1 + boostPct / 100)).toFixed(4);
+/** Base daily yield for a level (before NFT/ATF boosts). */
+export function baseDailyYield(level: number): number {
+  const l = Math.max(1, Math.min(MAX_LEVEL, level));
+  return +(game.mining.baseDailyYield * Math.pow(game.mining.growthPerLevel, l - 1)).toFixed(2);
 }
 
-export function hashrate(level: number, boostPct = 0): number {
+/** ATF holding (USD value) -> mining multiplier. */
+export function atfMultiplier(usd: number): number {
+  for (const t of game.atfBoost.tiers) if (usd >= t.minUsd && usd < t.maxUsd) return t.mult;
+  return 1;
+}
+
+/** Effective daily yield: level base × NFT boost × ATF multiplier. */
+export function dailyYield(level: number, nftBoostPct = 0, atfMult = 1): number {
+  return +(baseDailyYield(level) * (1 + nftBoostPct / 100) * atfMult).toFixed(4);
+}
+
+/** Cosmetic hashrate shown as TH/s, scaled by the ATF multiplier. */
+export function hashrate(level: number, atfMult = 1): number {
   const base = game.mining.baseHashrate + (level - 1) * game.mining.hashratePerLevel;
-  return +(base * (1 + boostPct / 100)).toFixed(2);
+  return +(base * atfMult).toFixed(2);
 }

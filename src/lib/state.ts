@@ -1,11 +1,12 @@
 import { sql, dayKey, nowMs, type UserRow } from './db';
 import {
   game,
+  MAX_LEVEL,
   dailyYield,
   hashrate,
-  levelForEarnings,
+  levelForHoldings,
   toNextLevel,
-  levelThreshold,
+  requiredMoola,
   nftById,
   nfts,
   type NftDef,
@@ -21,11 +22,16 @@ export function ownedSet(u: UserRow): Set<string> {
   return new Set(u.owned_nfts.split(',').map((s) => s.trim()).filter(Boolean));
 }
 
+/** MOOLA that counts toward your level: in-app balance or on-chain holdings. */
+export function heldMoola(u: UserRow): number {
+  return Math.max(u.balance, u.moola_onchain);
+}
+
 /** MOOLA accrued so far in the current (unclaimed) mining session. */
 export function pendingMining(u: UserRow, at = nowMs()): number {
   if (!u.mining_started_at) return 0;
-  const level = levelForEarnings(u.lifetime);
-  const perMs = dailyYield(level, activeBoost(u)) / (24 * 60 * 60 * 1000);
+  const level = levelForHoldings(heldMoola(u));
+  const perMs = dailyYield(level, activeBoost(u), u.atf_mult) / (24 * 60 * 60 * 1000);
   const elapsed = Math.min(at - u.mining_started_at, SESSION_MS);
   return Math.max(0, elapsed * perMs);
 }
@@ -34,7 +40,6 @@ export function isSessionComplete(u: UserRow, at = nowMs()): boolean {
   return !!u.mining_started_at && at - u.mining_started_at >= SESSION_MS;
 }
 
-/** Roll daily ad counters forward if we've crossed into a new day. */
 export async function ensureAdDay(u: UserRow): Promise<UserRow> {
   const today = dayKey();
   if (u.ads_day !== today) {
@@ -44,8 +49,7 @@ export async function ensureAdDay(u: UserRow): Promise<UserRow> {
   return u;
 }
 
-export function nftView(u: UserRow, def: NftDef, owned: Set<string>) {
-  const level = levelForEarnings(u.lifetime);
+export function nftView(u: UserRow, def: NftDef, owned: Set<string>, level: number) {
   const isOwned = owned.has(def.id);
   let unlockable = false;
   let lockLabel = '';
@@ -78,8 +82,10 @@ export function nftView(u: UserRow, def: NftDef, owned: Set<string>) {
 export type PublicUser = ReturnType<typeof serialize>;
 
 export function serialize(u: UserRow, socialDone: string[] = [], at = nowMs()) {
-  const level = levelForEarnings(u.lifetime);
-  const boost = activeBoost(u);
+  const held = heldMoola(u);
+  const level = levelForHoldings(held);
+  const nftBoost = activeBoost(u);
+  const atfMult = u.atf_mult && u.atf_mult > 0 ? u.atf_mult : 1;
   const pending = pendingMining(u, at);
   const today = dayKey(at);
   const owned = ownedSet(u);
@@ -101,15 +107,22 @@ export function serialize(u: UserRow, socialDone: string[] = [], at = nowMs()) {
 
     balance: round4(u.balance),
     lifetime: round4(u.lifetime),
+    held: round4(held),
 
     level,
-    toNextLevel: round2(toNextLevel(u.lifetime)),
-    levelFloor: levelThreshold(level),
-    levelCeil: levelThreshold(level + 1),
+    maxLevel: MAX_LEVEL,
+    toNextLevel: round2(toNextLevel(held)),
+    levelFloor: requiredMoola(level),
+    levelCeil: requiredMoola(level + 1),
 
-    dailyYield: dailyYield(level, boost),
-    hashrate: hashrate(level, boost),
-    boostPct: boost,
+    dailyYield: dailyYield(level, nftBoost, atfMult),
+    hashrate: hashrate(level, atfMult),
+    boostPct: nftBoost,
+
+    // ATF partnership
+    atfUsd: round2(u.atf_usd),
+    atfMult,
+    moolaOnchain: round2(u.moola_onchain),
 
     activeNft: u.active_nft,
     activeNftImage: nftById(u.active_nft)?.image ?? '/nft/genesis.webp',
@@ -144,7 +157,7 @@ export function serialize(u: UserRow, socialDone: string[] = [], at = nowMs()) {
       allDone: adsWatched >= game.ads.watch.count && adsVerified >= game.ads.verify.count,
     },
 
-    collection: nfts.map((def) => nftView(u, def, owned)),
+    collection: nfts.map((def) => nftView(u, def, owned, level)),
   };
 }
 
