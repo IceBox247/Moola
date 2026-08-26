@@ -147,8 +147,8 @@ export function MineScreen() {
         >
           <motion.div
             className="relative h-full w-full"
-            animate={mining.active ? { rotate: 360 } : { rotate: 0 }}
-            transition={mining.active ? { duration: 14, repeat: Infinity, ease: 'linear' } : { duration: 0.4 }}
+            animate={mining.active ? { scale: [1, 1.035, 1] } : { scale: 1 }}
+            transition={mining.active ? { duration: 2.4, repeat: Infinity, ease: 'easeInOut' } : { duration: 0.3 }}
           >
             <Image
               src="/brand/coin.png"
