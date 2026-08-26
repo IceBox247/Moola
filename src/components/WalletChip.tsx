@@ -63,19 +63,24 @@ export function WalletChip() {
         if (connected) tonUI.disconnect();
         else tonUI.openModal();
       }}
-      className={`flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-bold shadow-neon transition-colors ${
-        connected
-          ? 'border-moo-500/40 bg-moo-500/10 text-moo-200'
-          : 'border-sky-400/50 bg-sky-500/15 text-sky-200'
-      }`}
+      className="flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold text-white"
+      style={{
+        background: 'linear-gradient(180deg, #37b4ff, #0a84f0)',
+        boxShadow: '0 6px 18px rgba(10,132,240,0.45), inset 0 1px 0 rgba(255,255,255,0.35)',
+      }}
     >
-      {connected ? (
-        <>💎 {shortAddr(address)}</>
-      ) : (
-        <>
-          <span className="text-sm">💎</span> Connect TON
-        </>
-      )}
+      <TonIcon className="h-4 w-4 shrink-0" />
+      {connected ? shortAddr(address) : 'Connect Wallet'}
     </button>
+  );
+}
+
+/** TON diamond logo. */
+function TonIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden>
+      <path d="M12 3 L20.5 8.4 L12 21 L3.5 8.4 Z" opacity="0.95" />
+      <path d="M12 3 L12 21" stroke="rgba(10,80,160,0.55)" strokeWidth="1.4" />
+    </svg>
   );
 }
