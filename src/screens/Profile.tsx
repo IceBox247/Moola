@@ -2,13 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { motion } from 'framer-motion';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/client';
 import { AnimatedNumber, Skeleton } from '@/components/ui';
 import { fmt, timeAgo } from '@/lib/format';
 import { haptic, notify } from '@/lib/telegram';
-import { enableAudio, moo, startAmbience, stopAmbience } from '@/lib/sound';
+import { audio, playSfx, unlockAudio, type AudioPrefs } from '@/lib/audio';
 import type { HistoryItem, PublicUser } from '@/lib/types';
 
 const KIND_ICON: Record<string, string> = {
@@ -36,21 +35,6 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
 
   const MIN = 60;
 
-  async function toggleSound() {
-    haptic('light');
-    enableAudio();
-    const next = !u.soundFx;
-    if (next) {
-      // immediate audible confirmation — a real moo + short ambience preview
-      moo();
-      startAmbience();
-      if (!u.mining.active) setTimeout(stopAmbience, 2400);
-    } else {
-      stopAmbience();
-    }
-    await act('settings', { soundFx: next });
-  }
-
   async function withdraw() {
     const amt = Number(amount);
     if (!amt || amt < MIN) return toast(`Minimum withdrawal is ${MIN} MOOLA`, 'bad');
@@ -61,6 +45,7 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
     try {
       await act<{ user: PublicUser }>('withdraw', { amount: amt, address: address.trim() });
       notify('success');
+      playSfx('signature');
       toast('✅ Withdrawal requested!', 'good');
       setAmount('');
     } finally {
@@ -132,36 +117,8 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
         </p>
       </div>
 
-      {/* Settings */}
-      <div className="card flex items-center gap-3 p-4">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/5 text-xl">🔊</div>
-        <div className="flex-1">
-          <div className="font-bold">Mining Sound FX</div>
-          <div className="text-xs text-white/45">Pro mining-rig ambience</div>
-        </div>
-        {u.soundFx && (
-          <div className="flex items-end gap-0.5 pr-1" aria-hidden>
-            {[0, 1, 2, 3].map((n) => (
-              <motion.span
-                key={n}
-                className="w-1 rounded-full bg-moo-400"
-                animate={{ height: [4, 14, 6, 12, 4] }}
-                transition={{ duration: 1, repeat: Infinity, delay: n * 0.12 }}
-              />
-            ))}
-          </div>
-        )}
-        <button
-          onClick={toggleSound}
-          className={`relative h-7 w-12 rounded-full transition-colors ${u.soundFx ? 'bg-moo-500' : 'bg-white/15'}`}
-        >
-          <span
-            className={`absolute top-0.5 h-6 w-6 rounded-full bg-white transition-transform ${
-              u.soundFx ? 'translate-x-5' : 'translate-x-0.5'
-            }`}
-          />
-        </button>
-      </div>
+      {/* Audio settings */}
+      <AudioSettings mining={u.mining.active} />
 
       {/* History */}
       <div>
@@ -199,5 +156,111 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
         ← Back to mining
       </button>
     </div>
+  );
+}
+
+function AudioSettings({ mining }: { mining: boolean }) {
+  const [p, setP] = useState<AudioPrefs>(() => audio.getPrefs());
+
+  return (
+    <div className="card space-y-4 p-4">
+      <div className="flex items-center gap-2 font-bold">🔊 Audio</div>
+
+      {/* Sound effects */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1">
+          <div className="text-sm font-semibold">Sound Effects</div>
+          <div className="text-[11px] text-white/45">Claims, rewards, boosts &amp; more</div>
+        </div>
+        <Toggle
+          on={p.sfxOn}
+          onChange={(on) => {
+            unlockAudio();
+            audio.setSfxOn(on);
+            setP(audio.getPrefs());
+            if (on) playSfx('success');
+          }}
+        />
+      </div>
+      {p.sfxOn && (
+        <Slider
+          value={p.sfxVol}
+          onChange={(v) => {
+            audio.setSfxVol(v);
+            setP(audio.getPrefs());
+          }}
+          onCommit={() => playSfx('claim')}
+        />
+      )}
+
+      <div className="divider" />
+
+      {/* Mining music */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1">
+          <div className="text-sm font-semibold">Mining Music</div>
+          <div className="text-[11px] text-white/45">Ambient loop while you mine</div>
+        </div>
+        <Toggle
+          on={p.musicOn}
+          onChange={(on) => {
+            unlockAudio();
+            audio.setMusicOn(on);
+            setP(audio.getPrefs());
+          }}
+        />
+      </div>
+      {p.musicOn && (
+        <Slider
+          value={p.musicVol}
+          onChange={(v) => {
+            audio.setMusicVol(v);
+            setP(audio.getPrefs());
+          }}
+        />
+      )}
+
+      {!mining && p.musicOn && (
+        <p className="text-[11px] text-white/35">Music plays while a mining session is active.</p>
+      )}
+    </div>
+  );
+}
+
+function Toggle({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <button
+      onClick={() => onChange(!on)}
+      className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${on ? 'bg-moo-500' : 'bg-white/15'}`}
+      aria-pressed={on}
+    >
+      <span
+        className={`absolute top-0.5 h-6 w-6 rounded-full bg-white transition-transform ${
+          on ? 'translate-x-5' : 'translate-x-0.5'
+        }`}
+      />
+    </button>
+  );
+}
+
+function Slider({
+  value,
+  onChange,
+  onCommit,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  onCommit?: () => void;
+}) {
+  return (
+    <input
+      type="range"
+      min={0}
+      max={100}
+      value={Math.round(value * 100)}
+      onChange={(e) => onChange(Number(e.target.value) / 100)}
+      onPointerUp={onCommit}
+      className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-moo-500"
+    />
   );
 }

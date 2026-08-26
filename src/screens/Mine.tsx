@@ -10,7 +10,7 @@ import { WalletChip } from '@/components/WalletChip';
 import { LevelsModal } from '@/components/LevelsModal';
 import { AtfBoostModal } from '@/components/AtfBoostModal';
 import { haptic, notify } from '@/lib/telegram';
-import { enableAudio, moo, blip } from '@/lib/sound';
+import { unlockAudio, playSfx } from '@/lib/audio';
 import type { PublicUser } from '@/lib/types';
 
 function useNow(active: boolean) {
@@ -58,17 +58,18 @@ export function MineScreen() {
     if (busy) return;
     setBusy(true);
     haptic('heavy');
-    enableAudio();
+    unlockAudio();
     try {
       if (!mining.active) {
         await act('mine/start');
-        if (user!.soundFx) blip();
+        playSfx('mining_start');
         toast('⛏️ Mining started!', 'good');
       } else {
         const res = await act<{ user: PublicUser; claimed: number }>('mine/claim');
         notify('success');
-        if (user!.soundFx) moo();
-        toast(`+${fmt(res.claimed ?? 0, 4)} MOOLA claimed`, 'good');
+        const amt = res.claimed ?? 0;
+        playSfx(amt >= 50 ? 'reward_big' : 'claim'); // sound only after confirmed claim
+        toast(`+${fmt(amt, 4)} MOOLA claimed`, 'good');
       }
     } finally {
       setBusy(false);

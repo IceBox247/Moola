@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useStore } from '@/lib/store';
 import { fmt } from '@/lib/format';
 import { haptic, notify } from '@/lib/telegram';
-import { enableAudio, coinChime } from '@/lib/sound';
+import { unlockAudio, playSfx } from '@/lib/audio';
 import type { NftView, PublicUser, Rarity } from '@/lib/types';
 
 const RARITY: Record<Rarity, { ring: string; glow: string; text: string; chip: string }> = {
@@ -104,6 +104,7 @@ function NftModal({ nft, onClose }: { nft: NftView | null; onClose: () => void }
     try {
       await act('nft/select', { id: nft.id });
       notify('success');
+      playSfx('nft_activate');
       toast(`Equipped ${nft.name}`, 'good');
       onClose();
     } finally {
@@ -115,11 +116,11 @@ function NftModal({ nft, onClose }: { nft: NftView | null; onClose: () => void }
     if (!nft) return;
     setBusy(true);
     haptic('heavy');
-    enableAudio();
+    unlockAudio();
     try {
       await act<{ user: PublicUser }>('nft/unlock', { id: nft.id });
       notify('success');
-      coinChime();
+      playSfx('nft_activate');
       toast(`🎉 Unlocked ${nft.name}!`, 'good');
       onClose();
     } finally {

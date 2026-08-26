@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { api } from './client';
 import { initTelegram, notify } from './telegram';
+import { playSfx } from './audio';
 import type { PublicUser } from './types';
 
 type Toast = { id: number; text: string; kind: 'good' | 'bad' | 'info' };
@@ -32,7 +33,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const toast = useCallback((text: string, kind: Toast['kind'] = 'info') => {
     const id = ++toastId.current;
     setToasts((t) => [...t, { id, text, kind }]);
-    if (kind === 'bad') notify('error');
+    if (kind === 'bad') {
+      notify('error');
+      playSfx('error');
+    }
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2600);
   }, []);
 

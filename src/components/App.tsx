@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useStore } from '@/lib/store';
 import { ErrorBoundary } from './ErrorBoundary';
-import { enableAudio, startAmbience, stopAmbience } from '@/lib/sound';
+import { unlockAudio, startMiningLoop, stopMiningLoop, playSfx } from '@/lib/audio';
 import { BootScreen } from './BootScreen';
 import { Onboarding } from './Onboarding';
 import { BottomNav, type Tab } from './BottomNav';
@@ -19,21 +19,28 @@ export function App() {
   const { user, loading, error } = useStore();
   const [tab, setTab] = useState<Tab>('mine');
 
-  // Unlock audio on the first interaction (autoplay policy).
+  // Unlock the audio engine on the first interaction (autoplay policy).
   useEffect(() => {
-    const onGesture = () => enableAudio();
+    const onGesture = () => unlockAudio();
     window.addEventListener('pointerdown', onGesture, { once: true });
     return () => window.removeEventListener('pointerdown', onGesture);
   }, []);
 
-  // Mining-rig ambience: play while a session is active and sound is on.
+  // Mining ambient loop reflects the real mining-session state.
   const miningActive = user?.mining.active ?? false;
-  const soundOn = user?.soundFx ?? false;
   useEffect(() => {
-    if (miningActive && soundOn) startAmbience();
-    else stopAmbience();
-    return () => stopAmbience();
-  }, [miningActive, soundOn]);
+    if (miningActive) startMiningLoop();
+    else stopMiningLoop();
+    return () => stopMiningLoop();
+  }, [miningActive]);
+
+  // Level-up chime on a confirmed level increase.
+  const level = user?.level ?? 0;
+  const prevLevel = useRef(0);
+  useEffect(() => {
+    if (level > prevLevel.current && prevLevel.current > 0) playSfx('level_up');
+    prevLevel.current = level;
+  }, [level]);
 
   if (loading) return <BootScreen />;
 
