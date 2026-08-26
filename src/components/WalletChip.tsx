@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTonConnectUI, useTonAddress } from '@tonconnect/ui-react';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/client';
@@ -12,19 +12,47 @@ import type { PublicUser } from '@/lib/types';
 export function WalletChip() {
   const [tonUI] = useTonConnectUI();
   const address = useTonAddress(); // user-friendly UQ… address (empty when disconnected)
-  const { setUser } = useStore();
+  const { user, setUser } = useStore();
   const saved = useRef<string | null>(null);
 
-  // Persist the connected address to the backend once.
+  // Sync wallet state to the backend on connect AND disconnect.
   useEffect(() => {
     if (address && address !== saved.current) {
+      // Connected (or switched) — save + scan holdings.
       saved.current = address;
       api<{ user: PublicUser }>('wallet', { address })
         .then((r) => setUser(r.user))
         .catch(() => {});
+    } else if (!address && saved.current) {
+      // Disconnected — clear on-chain holdings so level/boost revert.
+      saved.current = null;
+      api<{ user: PublicUser }>('wallet/disconnect')
+        .then((r) => setUser(r.user))
+        .catch(() => {});
     }
-    if (!address) saved.current = null;
   }, [address, setUser]);
+
+  // Wait for TON Connect to finish restoring any prior connection before we
+  // decide a wallet is really gone (otherwise we'd wipe a still-connected one).
+  const [restored, setRestored] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    tonUI.connectionRestored.then(() => mounted && setRestored(true)).catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [tonUI]);
+
+  // If the backend still has a wallet (from a prior session) but TON Connect has
+  // none after restore, reconcile so a stale wallet can't linger.
+  useEffect(() => {
+    if (restored && !address && !saved.current && user?.wallet) {
+      api<{ user: PublicUser }>('wallet/disconnect')
+        .then((r) => setUser(r.user))
+        .catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restored, address, user?.wallet]);
 
   const connected = !!address;
 
