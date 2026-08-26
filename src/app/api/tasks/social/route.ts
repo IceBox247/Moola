@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { authed, unauthorized, badRequest, userResponse } from '@/lib/api';
 import { sql, credit, nowMs } from '@/lib/db';
 import { game } from '@/lib/config';
-import { referralEarn } from '@/lib/referrals';
+import { onUserEarned } from '@/lib/referrals';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
   if (rowCount && task.reward > 0) {
     await credit(ctx.user.id, task.reward, 'social', task.title);
-    await referralEarn(ctx.user.id, task.reward);
+    await onUserEarned(ctx.user.id);
   }
 
   return userResponse(ctx.user.id, { credited: !!rowCount && task.reward > 0, reward: task.reward });

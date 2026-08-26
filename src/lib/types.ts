@@ -80,7 +80,9 @@ export type FriendData = {
   earning: number;
   earned: number;
   inviteLink: string;
-  commissionPct: number;
+  firstTaskReward: number;
+  allAdsBonus: number;
+  miningCommissionPct: number;
   friends: Array<{ name: string; earning: boolean; earned: number; joinedAt: number }>;
 };
 

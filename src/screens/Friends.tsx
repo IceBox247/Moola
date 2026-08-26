@@ -43,8 +43,8 @@ export function FriendsScreen() {
           <span className="neon-text">Friends</span>
         </h1>
         <p className="text-sm text-white/50">
-          Earn <span className="gold-text font-bold">{data?.commissionPct ?? 5}%</span> of everything your friends mine
-          &amp; earn — forever.
+          Earn bonuses <span className="gold-text font-bold">+ {data?.miningCommissionPct ?? 5}%</span> of everything
+          your friends mine — forever.
         </p>
       </div>
 
@@ -98,8 +98,8 @@ export function FriendsScreen() {
             </div>
 
             <div className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-gold-400/40 bg-gold-500/[0.06] px-4 py-2">
-              <span className="gold-text text-base font-black">{data.commissionPct}% commission</span>
-              <span className="text-[11px] text-white/55">of all their earnings</span>
+              <span className="gold-text text-base font-black">{data.miningCommissionPct}%</span>
+              <span className="text-[11px] text-white/55">of all their mined MOOLA</span>
             </div>
           </div>
         ) : (
@@ -109,8 +109,9 @@ export function FriendsScreen() {
 
       {/* Rules */}
       <div className="space-y-2">
-        <Rule icon="💸" text={<>Earn <b className="gold-text">{data?.commissionPct ?? 5}%</b> of <b>everything</b> your friends mine, claim, and earn from tasks — automatically.</>} />
-        <Rule icon="♾️" text={<>It&apos;s <b>lifetime</b> and uncapped — the more your friends grind, the more you earn, forever.</>} />
+        <Rule icon="✅" text={<>Get <b className="gold-text">+{data?.firstTaskReward ?? 5} MOOLA</b> when a friend completes their <b>first</b> task.</>} />
+        <Rule icon="🎁" text={<>Get <b className="gold-text">+{data?.allAdsBonus ?? 50} MOOLA</b> when a friend finishes <b>all</b> of their daily ads.</>} />
+        <Rule icon="⛏️" text={<>Plus <b className="gold-text">{data?.miningCommissionPct ?? 5}%</b> of every friend&apos;s <b>mined</b> MOOLA — lifetime, auto-paid.</>} />
         <Rule icon="👋" text={<>Friends who only tap <b>Start</b> earn you nothing yet — they appear below so you can remind them.</>} />
       </div>
 

@@ -44,9 +44,9 @@ export const game = {
   ],
 
   referral: {
-    // Inviter earns this % of EVERYTHING their referred friends mine/earn,
-    // credited automatically each time the friend earns. Lifetime, no cap.
-    commissionPct: 5,
+    firstTaskReward: 5, // one-time, when a friend completes their first task
+    allAdsBonus: 50, // when a friend finishes all their daily ads (once/day)
+    miningCommissionPct: 5, // % of a friend's MINED MOOLA, every claim, lifetime
   },
 
   withdraw: {

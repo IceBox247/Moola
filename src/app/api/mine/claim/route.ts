@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { authed, unauthorized, badRequest, userResponse } from '@/lib/api';
 import { sql, credit, getUser } from '@/lib/db';
 import { pendingMining } from '@/lib/state';
-import { referralEarn } from '@/lib/referrals';
+import { onFriendMined, onUserEarned } from '@/lib/referrals';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,7 +30,8 @@ export async function POST(req: NextRequest) {
 
   if (earned > 0) {
     await credit(u.id, +earned.toFixed(4), 'mining', 'Mining reward');
-    await referralEarn(u.id, +earned.toFixed(4));
+    await onFriendMined(u.id, +earned.toFixed(4)); // 5% mining commission to inviter
+    await onUserEarned(u.id); // first-task bonus if this is their first earn
   }
 
   return userResponse(u.id, { claimed: +earned.toFixed(4) });
