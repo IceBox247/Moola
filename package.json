@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
+    "@tonconnect/ui-react": "^3.0.2",
     "framer-motion": "^11.15.0",
     "next": "15.5.24",
     "react": "19.0.0",

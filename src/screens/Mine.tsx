@@ -5,7 +5,8 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '@/lib/store';
 import { AnimatedNumber, ProgressBar } from '@/components/ui';
-import { fmt, countdown, shortAddr } from '@/lib/format';
+import { fmt, countdown } from '@/lib/format';
+import { WalletChip } from '@/components/WalletChip';
 import { haptic, notify } from '@/lib/telegram';
 import { enableAudio, moo, blip } from '@/lib/sound';
 import type { PublicUser } from '@/lib/types';
@@ -81,9 +82,7 @@ export function MineScreen() {
             </span>
           </div>
         </div>
-        <div className="rounded-full border border-moo-500/40 bg-moo-500/10 px-3 py-2 text-xs font-bold text-moo-200 shadow-neon">
-          {u.wallet ? `💎 ${shortAddr(u.wallet)}` : '💎 No wallet'}
-        </div>
+        <WalletChip />
       </div>
 
       {/* Balance hero */}
