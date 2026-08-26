@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useStore } from '@/lib/store';
 import { ProgressBar } from '@/components/ui';
 import { fmt } from '@/lib/format';
-import { haptic, notify, openLink } from '@/lib/telegram';
+import { haptic, notify, openLink, selection } from '@/lib/telegram';
 import { enableAudio, blip, coinChime } from '@/lib/sound';
 import { socialLink } from '@/lib/links';
 import { api } from '@/lib/client';
@@ -22,28 +23,67 @@ export function TasksScreen() {
   const [tab, setTab] = useState<'earn' | 'social'>('earn');
   const u = user!;
 
+  const dailyMax =
+    u.ads.watchTotal * u.ads.watchReward + u.ads.verifyTotal * u.ads.verifyReward;
+
   return (
     <div className="space-y-4">
-      <div className="text-center">
-        <h1 className="text-[26px] font-black tracking-tight">
-          <span className="h-grad">Big</span> <span className="neon-text">Earn</span>
-        </h1>
-        <p className="text-sm text-white/50">Rewards go straight to your balance</p>
+      {/* Hero banner */}
+      <div className="card-neon relative overflow-hidden p-5">
+        <Image
+          src="/brand/coin.png"
+          alt=""
+          width={150}
+          height={150}
+          className="pointer-events-none absolute -right-5 -top-6 rotate-[14deg] opacity-[0.14]"
+        />
+        <motion.div
+          className="pointer-events-none absolute -left-10 -top-10 h-40 w-40 rounded-full"
+          style={{ background: 'radial-gradient(circle, rgba(15,217,75,0.28), transparent 70%)' }}
+          animate={{ opacity: [0.5, 0.9, 0.5] }}
+          transition={{ duration: 3, repeat: Infinity }}
+        />
+        <div className="relative">
+          <div className="label text-moo-300/70">Daily Rewards</div>
+          <h1 className="text-[32px] font-black leading-none tracking-tight">
+            <span className="h-grad">Big</span> <span className="neon-text">Earn</span>
+          </h1>
+          <p className="mt-1.5 text-sm text-white/55">Rewards go straight to your balance</p>
+          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-gold-400/40 bg-gold-500/[0.08] px-3 py-1.5">
+            <span className="text-sm">🔥</span>
+            <span className="text-xs font-semibold text-white/70">
+              Earn up to <span className="gold-text font-black">{fmt(dailyMax, 0)} MOOLA</span> / day
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* Sub tabs */}
-      <div className="flex gap-2 rounded-2xl bg-white/5 p-1">
-        {(['earn', 'social'] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`flex-1 rounded-xl py-2.5 text-sm font-bold transition-all ${
-              tab === t ? 'bg-gradient-to-b from-moo-400 to-moo-600 text-ink-900 shadow-neon' : 'text-white/60'
-            }`}
-          >
-            {t === 'earn' ? 'Big Earn' : 'Social Tasks'}
-          </button>
-        ))}
+      {/* Animated segmented tabs */}
+      <div className="relative flex rounded-2xl border border-white/8 bg-black/30 p-1">
+        {(['earn', 'social'] as const).map((t) => {
+          const active = tab === t;
+          return (
+            <button
+              key={t}
+              onClick={() => {
+                selection();
+                setTab(t);
+              }}
+              className="relative z-10 flex flex-1 items-center justify-center gap-1.5 py-2.5 text-sm font-bold"
+            >
+              {active && (
+                <motion.span
+                  layoutId="tab-pill"
+                  className="absolute inset-0 -z-10 rounded-xl bg-gradient-to-b from-moo-400 to-moo-600 shadow-neon"
+                  transition={{ type: 'spring', stiffness: 360, damping: 30 }}
+                />
+              )}
+              <span className={active ? 'text-ink-900' : 'text-white/55'}>
+                {t === 'earn' ? '⚡ Big Earn' : '🎯 Social Tasks'}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {tab === 'earn' ? (
