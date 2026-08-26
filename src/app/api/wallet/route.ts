@@ -1,8 +1,6 @@
 import { NextRequest } from 'next/server';
 import { authed, unauthorized, badRequest, userResponse } from '@/lib/api';
-import { sql } from '@/lib/db';
-import { scanWallet } from '@/lib/ton';
-import { atfMultiplier } from '@/lib/config';
+import { applyWalletScan } from '@/lib/state';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,13 +19,6 @@ export async function POST(req: NextRequest) {
   const addr = String(address ?? ctx.user.wallet ?? '').trim();
   if (!looksLikeTon(addr)) return badRequest('invalid TON address');
 
-  const { atfUsd, moolaOnchain } = await scanWallet(addr);
-  const mult = atfMultiplier(atfUsd);
-
-  await sql`
-    UPDATE users
-    SET wallet = ${addr}, atf_usd = ${atfUsd}, atf_mult = ${mult}, moola_onchain = ${moolaOnchain}
-    WHERE id = ${ctx.user.id};
-  `;
+  await applyWalletScan(ctx.user, addr);
   return userResponse(ctx.user.id);
 }

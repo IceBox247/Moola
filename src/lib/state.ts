@@ -1,4 +1,4 @@
-import { sql, dayKey, nowMs, type UserRow } from './db';
+import { sql, dayKey, nowMs, getUser, type UserRow } from './db';
 import {
   game,
   MAX_LEVEL,
@@ -7,10 +7,12 @@ import {
   levelForHoldings,
   toNextLevel,
   requiredMoola,
+  atfMultiplier,
   nftById,
   nfts,
   type NftDef,
 } from './config';
+import { scanWallet } from './ton';
 
 const SESSION_MS = game.mining.sessionHours * 60 * 60 * 1000;
 
@@ -27,17 +29,70 @@ export function heldMoola(u: UserRow): number {
   return Math.max(u.balance, u.moola_onchain);
 }
 
-/** MOOLA accrued so far in the current (unclaimed) mining session. */
+/** Current per-ms mining rate at the user's live level + NFT + ATF multiplier. */
+function ratePerMs(u: UserRow): number {
+  const level = levelForHoldings(heldMoola(u));
+  const mult = u.atf_mult && u.atf_mult > 0 ? u.atf_mult : 1;
+  return dailyYield(level, activeBoost(u), mult) / (24 * 60 * 60 * 1000);
+}
+
+/** MOOLA mined in the current *unsettled* segment (since the last checkpoint). */
+export function pendingSegment(u: UserRow, at = nowMs()): number {
+  if (!u.mining_started_at) return 0;
+  const from = u.mining_settled_at ?? u.mining_started_at;
+  const to = Math.min(at, u.mining_started_at + SESSION_MS);
+  return Math.max(0, to - from) * ratePerMs(u);
+}
+
+/** Total MOOLA in the current session = already-settled + current segment. */
 export function pendingMining(u: UserRow, at = nowMs()): number {
   if (!u.mining_started_at) return 0;
-  const level = levelForHoldings(heldMoola(u));
-  const perMs = dailyYield(level, activeBoost(u), u.atf_mult) / (24 * 60 * 60 * 1000);
-  const elapsed = Math.min(at - u.mining_started_at, SESSION_MS);
-  return Math.max(0, elapsed * perMs);
+  return (u.mining_accrued || 0) + pendingSegment(u, at);
 }
 
 export function isSessionComplete(u: UserRow, at = nowMs()): boolean {
   return !!u.mining_started_at && at - u.mining_started_at >= SESSION_MS;
+}
+
+/**
+ * Checkpoint: lock in everything mined so far at the CURRENT verified rate,
+ * moving the settle marker to now. Called before any change that affects the
+ * rate (a wallet re-scan) and before a claim — so boosted MOOLA is only ever
+ * banked for the exact time the user actually held ATF.
+ */
+export async function settleMining(u: UserRow): Promise<UserRow> {
+  if (!u.mining_started_at) return u;
+  const now = nowMs();
+  const accrued = (u.mining_accrued || 0) + pendingSegment(u, now);
+  await sql`
+    UPDATE users SET mining_accrued = ${accrued}, mining_settled_at = ${now}
+    WHERE id = ${u.id} AND mining_started_at IS NOT NULL;
+  `;
+  return { ...u, mining_accrued: accrued, mining_settled_at: now };
+}
+
+/** Re-scan the wallet, settling the prior segment at the old rate first. */
+export async function applyWalletScan(u: UserRow, address: string): Promise<UserRow> {
+  const settled = await settleMining(u); // bank prior segment at the pre-scan rate
+  const { atfUsd, moolaOnchain } = await scanWallet(address);
+  const mult = atfMultiplier(atfUsd);
+  await sql`
+    UPDATE users
+    SET wallet = ${address}, atf_usd = ${atfUsd}, atf_mult = ${mult},
+        moola_onchain = ${moolaOnchain}, last_scan_at = ${nowMs()}
+    WHERE id = ${settled.id};
+  `;
+  return (await getUser(settled.id))!;
+}
+
+const RESCAN_INTERVAL_MS = 3 * 60 * 1000;
+
+/** Re-verify holdings if the last scan is stale (keeps the boost honest). */
+export async function maybeRescan(u: UserRow, force = false): Promise<UserRow> {
+  if (!u.wallet) return u;
+  const stale = force || !u.last_scan_at || nowMs() - u.last_scan_at > RESCAN_INTERVAL_MS;
+  if (!stale) return u;
+  return applyWalletScan(u, u.wallet);
 }
 
 export async function ensureAdDay(u: UserRow): Promise<UserRow> {

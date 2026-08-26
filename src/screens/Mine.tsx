@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '@/lib/store';
@@ -32,12 +32,19 @@ export function MineScreen() {
   const mining = user!.mining;
   const now = useNow(mining.active);
 
-  // Live-interpolated pending balance while mining.
+  // Anchor the live counter to the server's checkpointed pending value, then
+  // grow it locally at the current rate (rate changes when a re-scan lands).
+  const fetchedAt = useRef(Date.now());
+  useEffect(() => {
+    fetchedAt.current = Date.now();
+  }, [user]);
+
   const live = useMemo(() => {
-    if (!mining.active || !mining.startedAt) return 0;
+    if (!mining.active) return 0;
     const perMs = user!.dailyYield / (24 * 60 * 60 * 1000);
-    const elapsed = Math.min(now - mining.startedAt, mining.sessionMs);
-    return Math.max(0, elapsed * perMs);
+    const cap = mining.endsAt ? Math.max(0, mining.endsAt - fetchedAt.current) : 0;
+    const grown = Math.min(Math.max(0, now - fetchedAt.current), cap) * perMs;
+    return (mining.pending || 0) + grown;
   }, [mining, now, user]);
 
   const remaining = mining.endsAt ? mining.endsAt - now : 0;

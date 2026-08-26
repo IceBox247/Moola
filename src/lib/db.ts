@@ -55,6 +55,9 @@ export type UserRow = {
   atf_usd: number;
   atf_mult: number;
   moola_onchain: number;
+  last_scan_at: number | null;
+  mining_accrued: number;
+  mining_settled_at: number | null;
   created_at: number;
 };
 
@@ -114,6 +117,10 @@ async function initSchema(): Promise<void> {
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS atf_usd DOUBLE PRECISION NOT NULL DEFAULT 0;`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS atf_mult DOUBLE PRECISION NOT NULL DEFAULT 1;`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS moola_onchain DOUBLE PRECISION NOT NULL DEFAULT 0;`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_scan_at BIGINT;`;
+  // Mining is checkpointed so boost only applies while ATF is actually held.
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS mining_accrued DOUBLE PRECISION NOT NULL DEFAULT 0;`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS mining_settled_at BIGINT;`;
   await sql`
     CREATE TABLE IF NOT EXISTS withdrawals (
       id         BIGSERIAL PRIMARY KEY,
@@ -159,6 +166,9 @@ function rowToUser(r: Record<string, unknown>): UserRow {
     atf_usd: r.atf_usd != null ? Number(r.atf_usd) : 0,
     atf_mult: r.atf_mult != null ? Number(r.atf_mult) : 1,
     moola_onchain: r.moola_onchain != null ? Number(r.moola_onchain) : 0,
+    last_scan_at: r.last_scan_at != null ? Number(r.last_scan_at) : null,
+    mining_accrued: r.mining_accrued != null ? Number(r.mining_accrued) : 0,
+    mining_settled_at: r.mining_settled_at != null ? Number(r.mining_settled_at) : null,
     created_at: Number(r.created_at),
   };
 }
