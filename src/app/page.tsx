@@ -2,11 +2,14 @@
 
 import { StoreProvider } from '@/lib/store';
 import { App } from '@/components/App';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export default function Page() {
   return (
-    <StoreProvider>
-      <App />
-    </StoreProvider>
+    <ErrorBoundary>
+      <StoreProvider>
+        <App />
+      </StoreProvider>
+    </ErrorBoundary>
   );
 }

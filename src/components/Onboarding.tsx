@@ -45,6 +45,11 @@ export function Onboarding() {
     }
   }, []);
 
+  // NOTE: all hooks must run before any early return (Rules of Hooks).
+  const done = useMemo(() => new Set(user?.socialDone ?? []), [user]);
+  const completed = REQUIRED.filter((r) => done.has(r.id)).length;
+  const allDone = completed === REQUIRED.length;
+
   if (showStory) {
     return (
       <IntroStory
@@ -59,9 +64,6 @@ export function Onboarding() {
       />
     );
   }
-  const done = useMemo(() => new Set(user?.socialDone ?? []), [user]);
-  const completed = REQUIRED.filter((r) => done.has(r.id)).length;
-  const allDone = completed === REQUIRED.length;
 
   async function join(task: (typeof REQUIRED)[number]) {
     haptic('medium');
