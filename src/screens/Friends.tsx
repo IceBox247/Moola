@@ -13,10 +13,26 @@ import type { FriendData } from '@/lib/types';
 export function FriendsScreen() {
   const { toast } = useStore();
   const [data, setData] = useState<FriendData | null>(null);
+  const [reminding, setReminding] = useState<string | null>(null);
 
   useEffect(() => {
     api<FriendData>('friends').then(setData).catch(() => {});
   }, []);
+
+  async function remind(friendId: string) {
+    if (reminding) return;
+    haptic('light');
+    setReminding(friendId);
+    try {
+      const r = await api<{ sent: boolean }>('friends/remind', { friendId });
+      if (r.sent) toast('Reminder sent! 🐮', 'good');
+      else toast("Couldn't reach them — they may need to open the bot first.", 'bad');
+    } catch (e) {
+      toast((e as Error).message, 'bad');
+    } finally {
+      setReminding(null);
+    }
+  }
 
   function copy() {
     if (!data) return;
@@ -165,7 +181,13 @@ export function FriendsScreen() {
                     <div className="text-[10px] text-white/40">they&apos;ve earned</div>
                   </div>
                 ) : (
-                  <span className="chip bg-white/8 text-white/50">Remind</span>
+                  <button
+                    onClick={() => remind(f.id)}
+                    disabled={reminding === f.id}
+                    className="btn-ghost px-4 py-1.5 text-xs disabled:opacity-60"
+                  >
+                    {reminding === f.id ? '…' : 'Remind'}
+                  </button>
                 )}
               </div>
             ))}

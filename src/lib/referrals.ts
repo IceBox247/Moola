@@ -56,7 +56,7 @@ export async function onFriendMined(userId: string, minedAmount: number): Promis
 
 export async function friendSummary(userId: string) {
   const { rows } = await sql`
-    SELECT first_name, lifetime, created_at
+    SELECT id, first_name, lifetime, created_at
     FROM users WHERE referred_by = ${userId}
     ORDER BY lifetime DESC, created_at DESC;
   `;
@@ -69,6 +69,7 @@ export async function friendSummary(userId: string) {
     earning: rows.filter((r) => Number(r.lifetime) > 0).length,
     earned: Math.round(Number(earnedRow.rows[0].s) * 100) / 100,
     friends: rows.map((r) => ({
+      id: String(r.id),
       name: String(r.first_name),
       earning: Number(r.lifetime) > 0,
       earned: Math.round(Number(r.lifetime) * 100) / 100,

@@ -121,6 +121,7 @@ async function initSchema(): Promise<void> {
   // Mining is checkpointed so boost only applies while ATF is actually held.
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS mining_accrued DOUBLE PRECISION NOT NULL DEFAULT 0;`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS mining_settled_at BIGINT;`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reminded_at BIGINT;`;
   await sql`
     CREATE TABLE IF NOT EXISTS withdrawals (
       id         BIGSERIAL PRIMARY KEY,

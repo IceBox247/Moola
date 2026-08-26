@@ -89,7 +89,7 @@ export type FriendData = {
   firstTaskReward: number;
   allAdsBonus: number;
   miningCommissionPct: number;
-  friends: Array<{ name: string; earning: boolean; earned: number; joinedAt: number }>;
+  friends: Array<{ id: string; name: string; earning: boolean; earned: number; joinedAt: number }>;
 };
 
 export type HistoryItem = {
