@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useStore } from '@/lib/store';
 import { fmt } from '@/lib/format';
@@ -45,9 +46,16 @@ export function AtfBoostModal({ open, onClose }: { open: boolean; onClose: () =>
             onClick={(e) => e.stopPropagation()}
           >
             <div className="shrink-0 p-5 pb-3 text-center">
-              <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-white/20" />
+              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/20" />
+              <div className="relative mx-auto mb-2 h-16 w-16">
+                <div
+                  className="pointer-events-none absolute -inset-2 rounded-full"
+                  style={{ background: 'radial-gradient(circle, rgba(245,197,24,0.35), transparent 65%)' }}
+                />
+                <Image src="/brand/atf.png" alt="ATF" fill sizes="64px" className="relative object-contain drop-shadow-[0_0_12px_rgba(245,197,24,0.5)]" />
+              </div>
               <h3 className="text-xl font-black">
-                ⚡ <span className="gold-text">ATF</span> Mining Boost
+                <span className="gold-text">ATF</span> Mining Boost
               </h3>
               <p className="text-sm text-white/50">Hold ATF in your wallet to multiply your mining power</p>
 
