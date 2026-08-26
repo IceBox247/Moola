@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  @apply bg-ink-900 text-white antialiased;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, rgba(15, 217, 75, 0.10), transparent 60%),
+    radial-gradient(900px 500px at 100% 110%, rgba(15, 217, 75, 0.06), transparent 55%),
+    #04070c;
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Hide scrollbars but keep scroll */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@layer components {
+  .card {
+    @apply rounded-3xl border border-white/5 bg-white/[0.03] backdrop-blur-sm shadow-card;
+  }
+  .card-neon {
+    @apply rounded-3xl border border-moo-500/30 bg-moo-500/[0.04] shadow-neon;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl font-bold transition-transform active:scale-[0.97] select-none;
+  }
+  .btn-primary {
+    @apply btn bg-gradient-to-b from-moo-400 to-moo-600 text-ink-900 shadow-neon;
+  }
+  .btn-gold {
+    @apply btn bg-gradient-to-b from-gold-400 to-gold-600 text-ink-900 shadow-gold;
+  }
+  .btn-ghost {
+    @apply btn border border-white/10 bg-white/5 text-white;
+  }
+  .label {
+    @apply text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40;
+  }
+}
+
+/* Neon text */
+.neon-text {
+  color: #4dfd84;
+  text-shadow: 0 0 18px rgba(15, 217, 75, 0.55);
+}
+.gold-text {
+  color: #ffd54a;
+  text-shadow: 0 0 14px rgba(245, 197, 24, 0.4);
+}
+
+/* Shimmer progress fill */
+.shimmer-fill {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  animation: shimmer 2.2s infinite;
+}
+
+.safe-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 88px);
+}
