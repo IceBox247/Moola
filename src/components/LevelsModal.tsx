@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useStore } from '@/lib/store';
 import { fmt, fmtCompact } from '@/lib/format';
@@ -13,11 +13,10 @@ export function LevelsModal({ open, onClose }: { open: boolean; onClose: () => v
   const { user } = useStore();
   const u = user!;
 
+  // The full ladder, all the way to the max level.
   const rows = useMemo(() => {
-    const start = Math.max(1, u.level - 2);
-    const end = Math.min(MAX_LEVEL, start + 14);
     const list = [];
-    for (let n = start; n <= end; n++) {
+    for (let n = 1; n <= MAX_LEVEL; n++) {
       const req = requiredMoola(n);
       list.push({
         n,
@@ -30,7 +29,16 @@ export function LevelsModal({ open, onClose }: { open: boolean; onClose: () => v
       });
     }
     return list;
-  }, [u.level, u.held]);
+  }, [u.held, u.level]);
+
+  // Scroll to the current level when the sheet opens.
+  const currentRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (open) {
+      const t = setTimeout(() => currentRef.current?.scrollIntoView({ block: 'center' }), 120);
+      return () => clearTimeout(t);
+    }
+  }, [open]);
 
   function buy(missing: number) {
     haptic('heavy');
@@ -78,6 +86,7 @@ export function LevelsModal({ open, onClose }: { open: boolean; onClose: () => v
               {rows.map((r) => (
                 <div
                   key={r.n}
+                  ref={r.current ? currentRef : undefined}
                   className={`flex items-center gap-3 rounded-2xl border p-3 ${
                     r.current
                       ? 'border-moo-400/60 bg-moo-500/[0.08] shadow-neon'
