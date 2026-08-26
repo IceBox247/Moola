@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { useStore } from '@/lib/store';
@@ -8,6 +8,7 @@ import { api } from '@/lib/client';
 import { openLink, haptic, notify } from '@/lib/telegram';
 import { socialLink } from '@/lib/links';
 import { ProgressBar } from './ui';
+import { IntroStory } from './IntroStory';
 import type { PublicUser } from '@/lib/types';
 
 const REQUIRED = [
@@ -34,6 +35,30 @@ const REQUIRED = [
 export function Onboarding() {
   const { user, setUser, refresh } = useStore();
   const [busy, setBusy] = useState<string | null>(null);
+  const [showStory, setShowStory] = useState(true);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('moola_intro_seen')) setShowStory(false);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  if (showStory) {
+    return (
+      <IntroStory
+        onDone={() => {
+          try {
+            localStorage.setItem('moola_intro_seen', '1');
+          } catch {
+            /* ignore */
+          }
+          setShowStory(false);
+        }}
+      />
+    );
+  }
   const done = useMemo(() => new Set(user?.socialDone ?? []), [user]);
   const completed = REQUIRED.filter((r) => done.has(r.id)).length;
   const allDone = completed === REQUIRED.length;

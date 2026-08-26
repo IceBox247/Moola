@@ -6,6 +6,7 @@ import { useStore } from '@/lib/store';
 import { ProgressBar } from '@/components/ui';
 import { fmt } from '@/lib/format';
 import { haptic, notify, openLink } from '@/lib/telegram';
+import { enableAudio, blip, coinChime } from '@/lib/sound';
 import { socialLink } from '@/lib/links';
 import { api } from '@/lib/client';
 import type { PublicUser } from '@/lib/types';
@@ -73,6 +74,7 @@ function CheckIn() {
     try {
       const res = await act<{ user: PublicUser; reward: number }>('tasks/checkin');
       notify('success');
+      if (user!.soundFx) coinChime();
       toast(`✅ Day ${res.user.checkin.day} · +${res.reward} MOOLA`, 'good');
     } finally {
       setBusy(false);
@@ -135,12 +137,14 @@ function AdTasks() {
   async function run(type: 'watch' | 'verify') {
     if (watching) return;
     haptic('light');
+    enableAudio();
     setWatching(type);
     const wait = type === 'verify' ? user!.ads.verifyWaitSeconds * 1000 : 1600;
     setTimeout(async () => {
       try {
         const res = await act<{ user: PublicUser; reward: number }>('tasks/ad', { type });
         notify('success');
+        if (user!.soundFx) blip();
         toast(`+${fmt(res.reward, 2)} MOOLA`, 'good');
       } finally {
         setWatching(null);

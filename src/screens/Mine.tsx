@@ -7,6 +7,7 @@ import { useStore } from '@/lib/store';
 import { AnimatedNumber, ProgressBar } from '@/components/ui';
 import { fmt, countdown, shortAddr } from '@/lib/format';
 import { haptic, notify } from '@/lib/telegram';
+import { enableAudio, coinChime, blip } from '@/lib/sound';
 import type { PublicUser } from '@/lib/types';
 
 function useNow(active: boolean) {
@@ -45,13 +46,16 @@ export function MineScreen() {
     if (busy) return;
     setBusy(true);
     haptic('heavy');
+    enableAudio();
     try {
       if (!mining.active) {
         await act('mine/start');
+        if (user!.soundFx) blip();
         toast('⛏️ Mining started!', 'good');
       } else {
         const res = await act<{ user: PublicUser; claimed: number }>('mine/claim');
         notify('success');
+        if (user!.soundFx) coinChime();
         toast(`+${fmt(res.claimed ?? 0, 4)} MOOLA claimed`, 'good');
       }
     } finally {
@@ -111,31 +115,72 @@ export function MineScreen() {
         </div>
       </div>
 
-      {/* Hero: active NFT */}
-      <div className="relative mx-auto flex flex-col items-center py-2">
+      {/* Hero: the MOOLA coin */}
+      <div className="relative mx-auto flex flex-col items-center py-3">
         <div
-          className="pointer-events-none absolute inset-0 mx-auto h-64 w-64 rounded-full"
-          style={{ background: 'radial-gradient(circle, rgba(15,217,75,0.28), transparent 65%)' }}
+          className="pointer-events-none absolute top-2 mx-auto h-64 w-64 rounded-full"
+          style={{ background: 'radial-gradient(circle, rgba(15,217,75,0.32), transparent 62%)' }}
         />
-        <motion.div
-          className="relative"
-          animate={mining.active ? { y: [0, -8, 0] } : {}}
-          transition={{ duration: 3.2, repeat: Infinity }}
+
+        {/* rotating energy ring while mining */}
+        {mining.active && (
+          <motion.div
+            className="pointer-events-none absolute top-1 h-[266px] w-[266px] rounded-full"
+            style={{
+              background: 'conic-gradient(from 0deg, transparent, rgba(15,217,75,0.55), transparent 40%)',
+              mask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px))',
+              WebkitMask: 'radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px))',
+            }}
+            animate={{ rotate: 360 }}
+            transition={{ duration: 6, repeat: Infinity, ease: 'linear' }}
+          />
+        )}
+
+        <motion.button
+          onClick={onMainButton}
+          disabled={busy}
+          className="relative h-60 w-60"
+          whileTap={{ scale: 0.94 }}
+          animate={mining.active ? { y: [0, -6, 0] } : { y: [0, -4, 0] }}
+          transition={{ duration: mining.active ? 3 : 4.5, repeat: Infinity }}
+          aria-label={mining.active ? 'Tap to claim' : 'Tap to start mining'}
         >
-          {mining.active && (
-            <motion.div
-              className="absolute -inset-3 rounded-[36px] border-2 border-moo-500/40"
-              animate={{ opacity: [0.3, 0.9, 0.3], scale: [0.98, 1.02, 0.98] }}
-              transition={{ duration: 2, repeat: Infinity }}
+          <motion.div
+            className="relative h-full w-full"
+            animate={mining.active ? { rotate: 360 } : { rotate: 0 }}
+            transition={mining.active ? { duration: 14, repeat: Infinity, ease: 'linear' } : { duration: 0.4 }}
+          >
+            <Image
+              src="/brand/coin.png"
+              alt="MOOLA coin"
+              fill
+              sizes="240px"
+              priority
+              className="object-contain drop-shadow-[0_0_28px_rgba(15,217,75,0.55)]"
             />
-          )}
-          <div className="relative h-60 w-60 overflow-hidden rounded-[32px] border border-moo-500/25 bg-black/20 shadow-neon-lg">
-            <Image src={u.activeNftImage} alt="Miner" fill sizes="240px" className="object-contain" priority />
+          </motion.div>
+
+          {/* tap hint overlay */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-1 flex justify-center">
+            <span className="rounded-full bg-black/55 px-3 py-1 text-[11px] font-bold text-moo-200 backdrop-blur">
+              {mining.active ? 'TAP TO CLAIM' : 'TAP TO MINE'}
+            </span>
           </div>
-        </motion.div>
+        </motion.button>
+
+        {/* equipped NFT boost badge */}
+        <div className="mt-2 flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] py-1 pl-1 pr-3">
+          <div className="relative h-7 w-7 overflow-hidden rounded-full border border-moo-500/40">
+            <Image src={u.activeNftImage} alt="Miner" fill sizes="28px" className="object-cover" />
+          </div>
+          <span className="text-[11px] font-semibold text-white/60">
+            Miner boost <span className="gold-text font-bold">+{u.boostPct}%</span>
+          </span>
+        </div>
+
         <button
           onClick={() => setHelpOpen(true)}
-          className="absolute bottom-2 right-6 flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-black/40 text-white/60"
+          className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-black/40 text-white/60"
           aria-label="How mining works"
         >
           ?

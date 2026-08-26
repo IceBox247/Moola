@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
+import { motion } from 'framer-motion';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/client';
-import { Skeleton } from '@/components/ui';
+import { AnimatedNumber, Skeleton } from '@/components/ui';
 import { fmt, timeAgo } from '@/lib/format';
 import { haptic, openLink, tg } from '@/lib/telegram';
 import type { FriendData } from '@/lib/types';
@@ -44,20 +46,61 @@ export function FriendsScreen() {
       </div>
 
       {/* Stat hero */}
-      <div className="card-neon p-5 text-center">
+      <div className="card-neon relative overflow-hidden p-5">
+        {/* faint coin backdrop */}
+        <Image
+          src="/brand/coin.png"
+          alt=""
+          width={180}
+          height={180}
+          className="pointer-events-none absolute -right-6 -top-8 rotate-12 opacity-[0.12]"
+        />
         {data ? (
-          <>
-            <div className="text-5xl font-black neon-text">{data.earning}</div>
-            <p className="text-sm text-white/50">
-              friends earning · {data.invited} invited
-            </p>
-            <div className="mt-3 inline-block rounded-2xl border border-gold-400/40 px-5 py-2">
-              <span className="gold-text text-lg font-black">+{data.firstTaskReward} MOOLA</span>
-              <p className="text-[11px] text-white/50">per friend who finishes their 1st task</p>
+          <div className="relative text-center">
+            {/* herd */}
+            <div className="mb-3 flex justify-center -space-x-3">
+              {['genesis', 'cyber', 'samurai', 'astronaut'].map((id, idx) => (
+                <motion.div
+                  key={id}
+                  initial={{ opacity: 0, y: 8, scale: 0.8 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ delay: idx * 0.08 }}
+                  className="h-11 w-11 overflow-hidden rounded-full border-2 border-ink-850 bg-ink-800 shadow-neon"
+                >
+                  <Image src={`/nft/${id}.webp`} alt="" width={44} height={44} className="h-full w-full object-cover" />
+                </motion.div>
+              ))}
             </div>
-          </>
+
+            <div className="label">Earned from friends</div>
+            <div className="text-4xl font-black leading-none">
+              <AnimatedNumber value={data.earned} dp={2} className="neon-text" />{' '}
+              <span className="gold-text text-xl">MOOLA</span>
+            </div>
+
+            {/* stat pills */}
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-white/8 bg-black/25 py-2.5">
+                <div className="text-2xl font-black neon-text">
+                  <AnimatedNumber value={data.earning} dp={0} />
+                </div>
+                <div className="text-[11px] text-white/50">earning now</div>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-black/25 py-2.5">
+                <div className="text-2xl font-black text-white">
+                  <AnimatedNumber value={data.invited} dp={0} />
+                </div>
+                <div className="text-[11px] text-white/50">invited</div>
+              </div>
+            </div>
+
+            <div className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-gold-400/40 bg-gold-500/[0.06] px-4 py-2">
+              <span className="gold-text text-base font-black">+{data.firstTaskReward} MOOLA</span>
+              <span className="text-[11px] text-white/55">per friend&apos;s 1st task</span>
+            </div>
+          </div>
         ) : (
-          <Skeleton className="mx-auto h-28 w-full" />
+          <Skeleton className="mx-auto h-48 w-full" />
         )}
       </div>
 

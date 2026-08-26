@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useStore } from '@/lib/store';
+import { enableAudio, startAmbience, stopAmbience } from '@/lib/sound';
 import { BootScreen } from './BootScreen';
 import { Onboarding } from './Onboarding';
 import { BottomNav, type Tab } from './BottomNav';
@@ -16,6 +17,22 @@ import { ProfileScreen } from '@/screens/Profile';
 export function App() {
   const { user, loading, error } = useStore();
   const [tab, setTab] = useState<Tab>('mine');
+
+  // Unlock audio on the first interaction (autoplay policy).
+  useEffect(() => {
+    const onGesture = () => enableAudio();
+    window.addEventListener('pointerdown', onGesture, { once: true });
+    return () => window.removeEventListener('pointerdown', onGesture);
+  }, []);
+
+  // Mining-rig ambience: play while a session is active and sound is on.
+  const miningActive = user?.mining.active ?? false;
+  const soundOn = user?.soundFx ?? false;
+  useEffect(() => {
+    if (miningActive && soundOn) startAmbience();
+    else stopAmbience();
+    return () => stopAmbience();
+  }, [miningActive, soundOn]);
 
   if (loading) return <BootScreen />;
 

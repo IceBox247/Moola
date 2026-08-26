@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
+import { motion } from 'framer-motion';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/client';
 import { AnimatedNumber, Skeleton } from '@/components/ui';
 import { fmt, timeAgo } from '@/lib/format';
 import { haptic, notify } from '@/lib/telegram';
+import { enableAudio, blip, startAmbience, stopAmbience } from '@/lib/sound';
 import type { HistoryItem, PublicUser } from '@/lib/types';
 
 const KIND_ICON: Record<string, string> = {
@@ -36,7 +38,17 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
 
   async function toggleSound() {
     haptic('light');
-    await act('settings', { soundFx: !u.soundFx });
+    enableAudio();
+    const next = !u.soundFx;
+    if (next) {
+      // immediate audible confirmation + a short ambience preview
+      blip();
+      startAmbience();
+      if (!u.mining.active) setTimeout(stopAmbience, 1800);
+    } else {
+      stopAmbience();
+    }
+    await act('settings', { soundFx: next });
   }
 
   async function withdraw() {
@@ -127,6 +139,18 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
           <div className="font-bold">Mining Sound FX</div>
           <div className="text-xs text-white/45">Pro mining-rig ambience</div>
         </div>
+        {u.soundFx && (
+          <div className="flex items-end gap-0.5 pr-1" aria-hidden>
+            {[0, 1, 2, 3].map((n) => (
+              <motion.span
+                key={n}
+                className="w-1 rounded-full bg-moo-400"
+                animate={{ height: [4, 14, 6, 12, 4] }}
+                transition={{ duration: 1, repeat: Infinity, delay: n * 0.12 }}
+              />
+            ))}
+          </div>
+        )}
         <button
           onClick={toggleSound}
           className={`relative h-7 w-12 rounded-full transition-colors ${u.soundFx ? 'bg-moo-500' : 'bg-white/15'}`}
