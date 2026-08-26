@@ -24,8 +24,8 @@ export function TasksScreen() {
   return (
     <div className="space-y-4">
       <div className="text-center">
-        <h1 className="text-2xl font-black">
-          Big <span className="neon-text">Earn</span>
+        <h1 className="text-[26px] font-black tracking-tight">
+          <span className="h-grad">Big</span> <span className="neon-text">Earn</span>
         </h1>
         <p className="text-sm text-white/50">Rewards go straight to your balance</p>
       </div>

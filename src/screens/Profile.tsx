@@ -94,11 +94,11 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
             value={amount}
             onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
             placeholder="0.00"
-            className="flex-1 rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-lg font-bold outline-none focus:border-moo-500/50"
+            className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-lg font-bold outline-none focus:border-moo-500/50"
           />
           <button
             onClick={() => setAmount(String(Math.floor(u.balance * 100) / 100))}
-            className="btn-ghost px-5"
+            className="btn-ghost shrink-0 px-5"
           >
             MAX
           </button>

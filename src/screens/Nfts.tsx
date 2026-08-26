@@ -18,8 +18,8 @@ export function NftScreen() {
   return (
     <div className="space-y-4">
       <div className="text-center">
-        <h1 className="text-2xl font-black">
-          Moola <span className="neon-text">NFTs</span>
+        <h1 className="text-[26px] font-black tracking-tight">
+          <span className="h-grad">Moola</span> <span className="neon-text">NFTs</span>
         </h1>
         <p className="text-sm text-white/50">
           Collect cows · equip one to <span className="gold-text font-semibold">boost mining</span>
