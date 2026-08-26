@@ -86,12 +86,11 @@ export function WalletChip({ variant = 'chip' }: { variant?: 'chip' | 'button' }
   );
 }
 
-/** TON diamond logo. */
+/** Official TON diamond logo. */
 function TonIcon({ className = '' }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden>
-      <path d="M12 3 L20.5 8.4 L12 21 L3.5 8.4 Z" opacity="0.95" />
-      <path d="M12 3 L12 21" stroke="rgba(10,80,160,0.55)" strokeWidth="1.4" />
+    <svg viewBox="0 0 56 56" className={className} fill="currentColor" aria-hidden>
+      <path d="M37.56 15.6H18.44c-3.51 0-5.74 3.79-3.97 6.85l11.72 20.32c.77 1.33 2.69 1.33 3.46 0l11.72-20.32c1.76-3.06-.46-6.85-3.97-6.85zM27.23 36.95l-2.55-4.94-6.16-11.01c-.41-.71.09-1.62.99-1.62h7.72v17.57zm10.26-15.95-6.16 11.02-2.55 4.93V19.42h7.72c.9 0 1.4.91.99 1.58z" />
     </svg>
   );
 }

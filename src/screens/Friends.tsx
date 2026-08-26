@@ -46,7 +46,7 @@ export function FriendsScreen() {
   function share() {
     if (!data) return;
     haptic('medium');
-    const text = `🐮 Join me on Moola — mine MOOLA, collect neon cow NFTs & withdraw to TON!`;
+    const text = `🐮 Join me on Moola — mine MOOLA, collect neon cow NFTs & withdraw your MOOLA!`;
     const url = `https://t.me/share/url?url=${encodeURIComponent(data.inviteLink)}&text=${encodeURIComponent(text)}`;
     if (tg()?.openTelegramLink) tg()!.openTelegramLink!(url);
     else openLink(url);

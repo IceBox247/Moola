@@ -111,7 +111,7 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
           </button>
         </div>
 
-        <label className="label mt-3 block">TON Address</label>
+        <label className="label mt-3 block">Wallet Address (MOOLA is sent here)</label>
         <input
           value={address}
           onChange={(e) => setAddress(e.target.value)}
@@ -123,7 +123,7 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
           {busy ? '…' : 'Request Withdrawal'}
         </button>
         <p className="mt-2 text-center text-[11px] text-white/35">
-          Requests are queued and paid to your TON wallet by the payout desk.
+          Paid out in <span className="gold-text font-semibold">MOOLA</span> to your TON wallet by the payout desk.
         </p>
 
         {/* verification status */}

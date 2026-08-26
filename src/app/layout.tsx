@@ -4,7 +4,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Moola — Mine · Earn · Withdraw',
-  description: 'Mine MOOLA, collect neon cow NFTs, complete tasks and withdraw to TON.',
+  description: 'Mine MOOLA, collect neon cow NFTs, complete tasks and withdraw MOOLA to your TON wallet.',
   icons: { icon: '/brand/logo.webp' },
 };
 
