@@ -72,6 +72,10 @@ export const game = {
 
   withdraw: {
     min: 60,
+    // Withdrawals that push a user's lifetime withdrawn total over this need a
+    // one-time identity verification (video + photo). MOOLA isn't tradeable yet,
+    // so this is a flat token amount rather than a USD value.
+    verifyThreshold: 100000,
   },
 } as const;
 

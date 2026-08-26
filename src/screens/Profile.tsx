@@ -8,6 +8,8 @@ import { AnimatedNumber, Skeleton } from '@/components/ui';
 import { fmt, timeAgo } from '@/lib/format';
 import { haptic, notify } from '@/lib/telegram';
 import { audio, playSfx, unlockAudio, type AudioPrefs } from '@/lib/audio';
+import { VerifyModal } from '@/components/VerifyModal';
+import { fmtCompact } from '@/lib/format';
 import type { HistoryItem, PublicUser } from '@/lib/types';
 
 const KIND_ICON: Record<string, string> = {
@@ -27,6 +29,7 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
   const [amount, setAmount] = useState<string>('');
   const [address, setAddress] = useState<string>(u.wallet ?? '');
   const [busy, setBusy] = useState(false);
+  const [verifyOpen, setVerifyOpen] = useState(false);
   const [history, setHistory] = useState<HistoryItem[] | null>(null);
 
   useEffect(() => {
@@ -43,7 +46,14 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
     setBusy(true);
     haptic('heavy');
     try {
-      await act<{ user: PublicUser }>('withdraw', { amount: amt, address: address.trim() });
+      const res = await act<{ user?: PublicUser; needsVerification?: boolean }>('withdraw', {
+        amount: amt,
+        address: address.trim(),
+      });
+      if (res.needsVerification) {
+        setVerifyOpen(true);
+        return;
+      }
       notify('success');
       playSfx('signature');
       toast('✅ Withdrawal requested!', 'good');
@@ -115,6 +125,24 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
         <p className="mt-2 text-center text-[11px] text-white/35">
           Requests are queued and paid to your TON wallet by the payout desk.
         </p>
+
+        {/* verification status */}
+        {u.verified ? (
+          <div className="mt-2 flex items-center justify-center gap-1 text-[11px] text-moo-300">
+            ✓ Verified account
+          </div>
+        ) : u.verifyStatus === 'pending' ? (
+          <div className="mt-2 rounded-2xl border border-gold-400/30 bg-gold-500/[0.06] px-3 py-2 text-center text-[11px] text-white/60">
+            ⏳ Verification under review
+          </div>
+        ) : (
+          <button
+            onClick={() => setVerifyOpen(true)}
+            className="mt-2 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-center text-[11px] text-white/55"
+          >
+            🔒 Withdrawals over {fmtCompact(u.verifyThreshold)} MOOLA need verification — tap to verify
+          </button>
+        )}
       </div>
 
       {/* Audio settings */}
@@ -155,6 +183,8 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
       <button onClick={goMine} className="btn-ghost w-full py-3 text-sm">
         ← Back to mining
       </button>
+
+      <VerifyModal open={verifyOpen} onClose={() => setVerifyOpen(false)} />
     </div>
   );
 }

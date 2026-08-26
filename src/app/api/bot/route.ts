@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { upsertUser } from '@/lib/db';
+import { upsertUser, sql } from '@/lib/db';
+import { sendBotMessage } from '@/lib/telegramBot';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -38,6 +39,51 @@ export async function POST(req: NextRequest) {
   }
 
   const update = await req.json().catch(() => null);
+
+  // ── Admin verification Approve/Reject buttons ──
+  const cq = update?.callback_query;
+  if (cq) {
+    const data: string = cq.data ?? '';
+    const fromId = String(cq.from?.id ?? '');
+    const adminIds = (process.env.ADMIN_IDS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+    const adminChat = process.env.ADMIN_CHAT_ID ?? '';
+    const isAdmin =
+      (adminIds.length > 0 && adminIds.includes(fromId)) ||
+      (adminChat && String(cq.message?.chat?.id) === String(adminChat));
+
+    if (data.startsWith('verify:')) {
+      if (!isAdmin) {
+        await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'Not authorized' });
+        return NextResponse.json({ ok: true });
+      }
+      const [, action, userId] = data.split(':');
+      const approve = action === 'approve';
+      await sql`
+        UPDATE users SET verified = ${approve}, verify_status = ${approve ? 'approved' : 'rejected'}
+        WHERE id = ${userId};
+      `;
+      await tg('answerCallbackQuery', {
+        callback_query_id: cq.id,
+        text: approve ? 'Approved ✅' : 'Rejected ❌',
+      });
+      if (cq.message) {
+        await tg('editMessageCaption', {
+          chat_id: cq.message.chat.id,
+          message_id: cq.message.message_id,
+          parse_mode: 'HTML',
+          caption: `${cq.message.caption ?? ''}\n\n<b>${approve ? '✅ APPROVED' : '❌ REJECTED'}</b> by ${cq.from.first_name ?? 'admin'}`,
+        });
+      }
+      await sendBotMessage(
+        userId,
+        approve
+          ? '✅ Your Moola account is <b>verified</b>! You can withdraw now.'
+          : '❌ Your verification was not approved. Please redo it with a clear, well-lit video and photo.'
+      );
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   const msg = update?.message;
   const text: string = msg?.text ?? '';
   const from = msg?.from;

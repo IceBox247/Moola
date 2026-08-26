@@ -45,6 +45,11 @@ export type PublicUser = {
   atfMult: number;
   moolaOnchain: number;
 
+  verified: boolean;
+  verifyStatus: string; // 'none' | 'pending' | 'approved' | 'rejected'
+  verifyThreshold: number;
+  withdrawnTotal: number;
+
   activeNft: string;
   activeNftImage: string;
   ownedNfts: string[];

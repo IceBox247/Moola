@@ -58,6 +58,8 @@ export type UserRow = {
   last_scan_at: number | null;
   mining_accrued: number;
   mining_settled_at: number | null;
+  verified: boolean;
+  verify_status: string;
   created_at: number;
 };
 
@@ -122,6 +124,8 @@ async function initSchema(): Promise<void> {
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS mining_accrued DOUBLE PRECISION NOT NULL DEFAULT 0;`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS mining_settled_at BIGINT;`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reminded_at BIGINT;`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT FALSE;`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_status TEXT NOT NULL DEFAULT 'none';`;
   await sql`
     CREATE TABLE IF NOT EXISTS withdrawals (
       id         BIGSERIAL PRIMARY KEY,
@@ -170,6 +174,8 @@ function rowToUser(r: Record<string, unknown>): UserRow {
     last_scan_at: r.last_scan_at != null ? Number(r.last_scan_at) : null,
     mining_accrued: r.mining_accrued != null ? Number(r.mining_accrued) : 0,
     mining_settled_at: r.mining_settled_at != null ? Number(r.mining_settled_at) : null,
+    verified: Boolean(r.verified),
+    verify_status: (r.verify_status as string) ?? 'none',
     created_at: Number(r.created_at),
   };
 }
@@ -235,6 +241,16 @@ export async function credit(userId: string, amount: number, kind: string, label
     WHERE id = ${userId};
   `;
   await addTx(userId, kind, amount, label);
+}
+
+/** Total MOOLA a user has withdrawn or has queued (excludes rejected/failed). */
+export async function withdrawnTotal(userId: string): Promise<number> {
+  await ensureSchema();
+  const { rows } = await sql`
+    SELECT COALESCE(SUM(amount),0) AS s FROM withdrawals
+    WHERE user_id = ${userId} AND status IN ('pending','processing','paid');
+  `;
+  return Math.round(Number(rows[0]?.s ?? 0) * 100) / 100;
 }
 
 export async function getSocialDone(userId: string): Promise<string[]> {

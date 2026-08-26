@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
-import { authed, unauthorized, badRequest, userResponse } from '@/lib/api';
-import { sql, getUser, addTx, nowMs } from '@/lib/db';
+import { authed, unauthorized, badRequest, userResponse, json } from '@/lib/api';
+import { sql, getUser, addTx, nowMs, withdrawnTotal } from '@/lib/db';
 import { game } from '@/lib/config';
 
 export const runtime = 'nodejs';
@@ -21,6 +21,15 @@ export async function POST(req: NextRequest) {
   if (!Number.isFinite(amount) || amount <= 0) return badRequest('invalid amount');
   if (amount < game.withdraw.min) return badRequest(`minimum withdrawal is ${game.withdraw.min} MOOLA`);
   if (!address) return badRequest('enter your TON address');
+
+  // Verification gate: once a user's total withdrawn (queued + paid) crosses the
+  // threshold, they must be verified. Blocks the request without debiting.
+  if (!ctx.user.verified) {
+    const already = await withdrawnTotal(ctx.user.id);
+    if (amount > game.withdraw.verifyThreshold || already + amount > game.withdraw.verifyThreshold) {
+      return json({ needsVerification: true, verifyStatus: ctx.user.verify_status });
+    }
+  }
 
   // Debit atomically only if the balance covers it.
   const { rowCount } = await sql`

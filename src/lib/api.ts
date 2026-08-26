@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyInitData } from './auth';
-import { upsertUser, getUser, getSocialDone, type UserRow } from './db';
+import { upsertUser, getUser, getSocialDone, withdrawnTotal, type UserRow } from './db';
 import { serialize } from './state';
 
 export type Ctx = { user: UserRow; startParam: string | null };
@@ -40,6 +40,9 @@ export function badRequest(msg: string) {
 export async function userResponse(id: string, extra?: Record<string, unknown>) {
   const u = await getUser(id);
   if (!u) return unauthorized();
-  const socialDone = await getSocialDone(id);
-  return NextResponse.json({ user: serialize(u, socialDone), ...(extra ?? {}) });
+  const [socialDone, wTotal] = await Promise.all([getSocialDone(id), withdrawnTotal(id)]);
+  return NextResponse.json({
+    user: { ...serialize(u, socialDone), withdrawnTotal: wTotal },
+    ...(extra ?? {}),
+  });
 }

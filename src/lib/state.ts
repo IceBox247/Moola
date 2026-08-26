@@ -179,6 +179,10 @@ export function serialize(u: UserRow, socialDone: string[] = [], at = nowMs()) {
     atfMult,
     moolaOnchain: round2(u.moola_onchain),
 
+    verified: u.verified,
+    verifyStatus: u.verify_status,
+    verifyThreshold: game.withdraw.verifyThreshold,
+
     activeNft: u.active_nft,
     activeNftImage: nftById(u.active_nft)?.image ?? '/nft/genesis.webp',
     ownedNfts: [...owned],
