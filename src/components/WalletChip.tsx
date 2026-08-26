@@ -72,7 +72,7 @@ export function WalletChip({ variant = 'chip' }: { variant?: 'chip' | 'button' }
         className="flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-4 text-base font-black text-white"
         style={blue}
       >
-        <TonIcon className="h-5 w-5 shrink-0" />
+        <TonIcon className="h-7 w-7 shrink-0" />
         {connected ? `Connected · ${shortAddr(address)}` : 'Connect TON Wallet'}
       </button>
     );
@@ -80,7 +80,7 @@ export function WalletChip({ variant = 'chip' }: { variant?: 'chip' | 'button' }
 
   return (
     <button onClick={onClick} className="flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold text-white" style={blue}>
-      <TonIcon className="h-4 w-4 shrink-0" />
+      <TonIcon className="h-[22px] w-[22px] shrink-0" />
       {connected ? shortAddr(address) : 'Connect Wallet'}
     </button>
   );
