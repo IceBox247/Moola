@@ -73,8 +73,8 @@ export function LevelsModal({ open, onClose }: { open: boolean; onClose: () => v
               )}
             </div>
 
-            {/* level list */}
-            <div className="no-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto px-4 pb-6">
+            {/* level list — extra bottom padding so last cards clear the nav */}
+            <div className="no-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto px-4 pb-28">
               {rows.map((r) => (
                 <div
                   key={r.n}
