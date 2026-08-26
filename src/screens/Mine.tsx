@@ -182,13 +182,6 @@ export function MineScreen() {
               className="object-contain drop-shadow-[0_0_28px_rgba(15,217,75,0.55)]"
             />
           </motion.div>
-
-          {/* tap hint overlay */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-1 flex justify-center">
-            <span className="rounded-full bg-black/55 px-3 py-1 text-[11px] font-bold text-moo-200 backdrop-blur">
-              {mining.active ? 'TAP TO CLAIM' : 'TAP TO MINE'}
-            </span>
-          </div>
         </motion.button>
 
         {/* equipped NFT boost badge */}
