@@ -86,32 +86,55 @@ export function MineScreen() {
         </div>
       </div>
 
-      {/* Level progress */}
-      <div className="card px-4 py-3">
-        <div className="mb-1.5 flex justify-between text-xs">
-          <span className="text-white/50">
-            <span className="neon-text font-bold">{fmt(u.toNextLevel, 2)}</span> MOOLA to Lvl {u.level + 1}
-          </span>
-          <span className="text-white/40">{fmt(u.lifetime, 0)} lifetime</span>
-        </div>
-        <ProgressBar pct={levelPct} />
-      </div>
+      {/* Balance hero */}
+      <div className="rounded-[26px] bg-gradient-to-b from-moo-400/50 via-moo-500/15 to-transparent p-[1.5px] shadow-neon">
+        <div className="relative overflow-hidden rounded-[25px] bg-ink-850/95 px-5 pb-4 pt-5">
+          <Image
+            src="/brand/coin.png"
+            alt=""
+            width={150}
+            height={150}
+            className="pointer-events-none absolute -right-7 -top-7 opacity-[0.08]"
+          />
+          <div className="relative text-center">
+            <div className="label">Balance</div>
+            <div className="mt-1 flex items-baseline justify-center gap-2">
+              <AnimatedNumber
+                value={u.balance + live}
+                dp={4}
+                className="neon-text text-[42px] font-black leading-none tracking-tight"
+              />
+              <span className="gold-text text-xl font-black">MOOLA</span>
+            </div>
 
-      {/* Balance + rate */}
-      <div className="card-neon relative overflow-hidden px-5 py-5 text-center">
-        <div className="label">Balance</div>
-        <div className="mt-1 text-4xl font-black">
-          <AnimatedNumber value={u.balance + live} dp={4} className="neon-text" />{' '}
-          <span className="gold-text text-2xl">MOOLA</span>
-        </div>
-        <div className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-black/30 px-4 py-2">
-          <span className="text-lg font-black text-moo-300">
-            +<AnimatedNumber value={live} dp={4} />
-          </span>
-          <span className="text-xs text-white/50">
-            {u.dailyYield} MOOLA/day · {u.hashrate} TH/s
-            {u.boostPct > 0 && <span className="ml-1 gold-text font-bold">+{u.boostPct}%</span>}
-          </span>
+            <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-moo-500/30 bg-moo-500/[0.08] px-4 py-1.5">
+              <motion.span
+                className="h-2 w-2 rounded-full bg-moo-400"
+                animate={mining.active ? { opacity: [1, 0.3, 1] } : { opacity: 0.4 }}
+                transition={{ duration: 1.4, repeat: Infinity }}
+              />
+              <span className="text-sm font-black text-moo-300">
+                +<AnimatedNumber value={live} dp={4} />
+              </span>
+              <span className="text-[11px] text-white/45">{mining.active ? 'mining live' : 'idle'}</span>
+            </div>
+          </div>
+
+          <div className="relative mt-4 grid grid-cols-3 gap-2">
+            <Stat label="Per day" value={`${u.dailyYield}`} />
+            <Stat label="Hashrate" value={`${u.hashrate}`} sub="TH/s" />
+            <Stat label="Boost" value={`+${u.boostPct}%`} gold />
+          </div>
+
+          <div className="relative mt-4">
+            <div className="mb-1.5 flex items-center justify-between text-[11px]">
+              <span className="chip bg-white/8 text-white/70">Lvl {u.level}</span>
+              <span className="text-white/45">
+                <span className="neon-text font-bold">{fmt(u.toNextLevel, 2)}</span> to Lvl {u.level + 1}
+              </span>
+            </div>
+            <ProgressBar pct={levelPct} />
+          </div>
         </div>
       </div>
 
@@ -241,6 +264,18 @@ export function MineScreen() {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function Stat({ label, value, sub, gold }: { label: string; value: string; sub?: string; gold?: boolean }) {
+  return (
+    <div className="rounded-2xl border border-white/8 bg-black/25 px-2 py-2.5 text-center">
+      <div className="label">{label}</div>
+      <div className={`mt-0.5 text-base font-black ${gold ? 'gold-text' : 'text-white'}`}>
+        {value}
+        {sub && <span className="ml-0.5 text-[10px] font-semibold text-white/45">{sub}</span>}
+      </div>
     </div>
   );
 }
