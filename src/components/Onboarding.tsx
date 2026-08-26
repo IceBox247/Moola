@@ -17,8 +17,8 @@ const REQUIRED = [
     tag: '⭐ OFFICIAL PARTNER',
     step: 'Step 1',
     title: 'Join Official Partner',
-    sub: 'Our sponsor — tap to join',
-    icon: '🤝',
+    sub: 'AI Trading Forex — our sponsor',
+    logo: '/brand/atf.png',
     kind: 'partner',
   },
   {
@@ -27,7 +27,7 @@ const REQUIRED = [
     step: 'Step 2',
     title: 'Join Official Channel',
     sub: 'News, updates & airdrop alerts',
-    icon: '📣',
+    logo: '/brand/logo.png',
     kind: 'channel',
   },
 ];
@@ -142,8 +142,8 @@ export function Onboarding() {
                   </div>
                 )}
                 <div className="flex items-center gap-3 p-3.5">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/5 text-2xl">
-                    {task.icon}
+                  <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+                    <Image src={task.logo} alt={task.title} fill sizes="48px" className="object-contain p-1" />
                   </div>
                   <div className="flex-1 text-left">
                     <div className="text-[11px] font-bold uppercase tracking-wide text-gold-400">{task.step}</div>
