@@ -9,6 +9,7 @@ import { openLink, haptic, notify } from '@/lib/telegram';
 import { socialLink } from '@/lib/links';
 import { ProgressBar } from './ui';
 import { IntroStory } from './IntroStory';
+import { AtfBoostStep } from './AtfBoostStep';
 import type { PublicUser } from '@/lib/types';
 
 const REQUIRED = [
@@ -35,17 +36,20 @@ const REQUIRED = [
 export function Onboarding() {
   const { user, setUser, refresh } = useStore();
   const [busy, setBusy] = useState<string | null>(null);
-  const [showStory, setShowStory] = useState(true);
+  const [phase, setPhase] = useState<'story' | 'boost' | 'gate'>('story');
 
   // NOTE: all hooks must run before any early return (Rules of Hooks).
   const done = useMemo(() => new Set(user?.socialDone ?? []), [user]);
   const completed = REQUIRED.filter((r) => done.has(r.id)).length;
   const allDone = completed === REQUIRED.length;
 
-  // Always play the story before the join gate for anyone not yet onboarded.
-  // (Onboarded users never reach this screen.) They can tap Skip.
-  if (showStory) {
-    return <IntroStory onDone={() => setShowStory(false)} />;
+  // Onboarding flow for anyone not yet onboarded (onboarded users never reach
+  // this screen): story → ATF boost (connect wallet) → join gate → dashboard.
+  if (phase === 'story') {
+    return <IntroStory onDone={() => setPhase('boost')} />;
+  }
+  if (phase === 'boost') {
+    return <AtfBoostStep onContinue={() => setPhase('gate')} />;
   }
 
   async function join(task: (typeof REQUIRED)[number]) {
