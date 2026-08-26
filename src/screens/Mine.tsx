@@ -8,8 +8,7 @@ import { AnimatedNumber, ProgressBar } from '@/components/ui';
 import { fmt, countdown } from '@/lib/format';
 import { WalletChip } from '@/components/WalletChip';
 import { LevelsModal } from '@/components/LevelsModal';
-import { openLink } from '@/lib/telegram';
-import { stonfiBuyAtf } from '@/lib/links';
+import { AtfBoostModal } from '@/components/AtfBoostModal';
 import { haptic, notify } from '@/lib/telegram';
 import { enableAudio, moo, blip } from '@/lib/sound';
 import type { PublicUser } from '@/lib/types';
@@ -28,6 +27,7 @@ export function MineScreen() {
   const { user, act, toast } = useStore();
   const [helpOpen, setHelpOpen] = useState(false);
   const [levelsOpen, setLevelsOpen] = useState(false);
+  const [atfOpen, setAtfOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const mining = user!.mining;
   const now = useNow(mining.active);
@@ -131,23 +131,21 @@ export function MineScreen() {
               <span className="text-[11px] text-white/45">{mining.active ? 'mining live' : 'idle'}</span>
             </div>
 
-            {/* ATF partnership boost */}
+            {/* ATF partnership boost — tap to see tiers */}
             <div className="mt-2 flex justify-center">
-              {u.atfMult > 1 ? (
-                <span className="chip border border-gold-400/40 bg-gold-500/[0.1] text-gold-300">
-                  ⚡ {u.atfMult}× ATF boost active
-                </span>
-              ) : (
-                <button
-                  onClick={() => {
-                    haptic('light');
-                    openLink(stonfiBuyAtf());
-                  }}
-                  className="chip border border-white/12 bg-white/[0.05] text-white/60"
-                >
-                  🤝 Hold ATF for up to 64× boost ›
-                </button>
-              )}
+              <button
+                onClick={() => {
+                  haptic('light');
+                  setAtfOpen(true);
+                }}
+                className={`chip border ${
+                  u.atfMult > 1
+                    ? 'border-gold-400/40 bg-gold-500/[0.1] text-gold-300'
+                    : 'border-white/[0.12] bg-white/[0.05] text-white/60'
+                }`}
+              >
+                {u.atfMult > 1 ? `⚡ ${u.atfMult}× ATF boost active ›` : '🤝 Hold ATF for up to 64× boost ›'}
+              </button>
             </div>
           </div>
 
@@ -290,6 +288,7 @@ export function MineScreen() {
       </AnimatePresence>
 
       <LevelsModal open={levelsOpen} onClose={() => setLevelsOpen(false)} />
+      <AtfBoostModal open={atfOpen} onClose={() => setAtfOpen(false)} />
     </div>
   );
 }
