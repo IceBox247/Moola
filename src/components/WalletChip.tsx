@@ -69,18 +69,18 @@ export function WalletChip({ variant = 'chip' }: { variant?: 'chip' | 'button' }
     return (
       <button
         onClick={onClick}
-        className="flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-4 text-base font-black text-white"
+        className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-2xl px-4 py-4 text-base font-black text-white"
         style={blue}
       >
-        <TonIcon className="h-7 w-7 shrink-0" />
+        <TonIcon className="h-6 w-6 shrink-0" />
         {connected ? `Connected · ${shortAddr(address)}` : 'Connect TON Wallet'}
       </button>
     );
   }
 
   return (
-    <button onClick={onClick} className="flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold text-white" style={blue}>
-      <TonIcon className="h-[22px] w-[22px] shrink-0" />
+    <button onClick={onClick} className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-bold text-white" style={blue}>
+      <TonIcon className="h-5 w-5 shrink-0" />
       {connected ? shortAddr(address) : 'Connect Wallet'}
     </button>
   );
@@ -89,7 +89,7 @@ export function WalletChip({ variant = 'chip' }: { variant?: 'chip' | 'button' }
 /** Official TON diamond logo. */
 function TonIcon({ className = '' }: { className?: string }) {
   return (
-    <svg viewBox="0 0 56 56" className={className} fill="currentColor" aria-hidden>
+    <svg viewBox="14 15 28 29" className={className} fill="currentColor" aria-hidden>
       <path d="M37.56 15.6H18.44c-3.51 0-5.74 3.79-3.97 6.85l11.72 20.32c.77 1.33 2.69 1.33 3.46 0l11.72-20.32c1.76-3.06-.46-6.85-3.97-6.85zM27.23 36.95l-2.55-4.94-6.16-11.01c-.41-.71.09-1.62.99-1.62h7.72v17.57zm10.26-15.95-6.16 11.02-2.55 4.93V19.42h7.72c.9 0 1.4.91.99 1.58z" />
     </svg>
   );
