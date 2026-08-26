@@ -22,6 +22,7 @@ export const game = {
     sessionHours: 8,
     baseDailyYield: 10, // MOOLA/day at level 1
     growthPerLevel: 1.0065, // daily yield compounds per level up to MAX_LEVEL
+    yieldSteepness: 5, // multiplies the per-level increase (5× the base step)
     baseHashrate: 0.2, // TH/s (cosmetic)
     hashratePerLevel: 0.009,
   },
@@ -262,10 +263,16 @@ export function toNextLevel(held: number): number {
   return Math.max(0, requiredMoola(level + 1) - held);
 }
 
-/** Base daily yield for a level (before NFT/ATF boosts). */
+/**
+ * Base daily yield for a level (before NFT/ATF boosts).
+ * The gap above level 1 is scaled by `yieldSteepness`, so the per-level step is
+ * that many times bigger while the curve keeps its shape. Level 1 stays at base.
+ */
 export function baseDailyYield(level: number): number {
   const l = Math.max(1, Math.min(MAX_LEVEL, level));
-  return +(game.mining.baseDailyYield * Math.pow(game.mining.growthPerLevel, l - 1)).toFixed(2);
+  const base = game.mining.baseDailyYield;
+  const grown = base * Math.pow(game.mining.growthPerLevel, l - 1);
+  return +(base + game.mining.yieldSteepness * (grown - base)).toFixed(2);
 }
 
 /** ATF holding (USD value) -> mining multiplier. */
