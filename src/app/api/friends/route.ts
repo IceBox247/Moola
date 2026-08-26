@@ -16,7 +16,6 @@ export async function POST(req: NextRequest) {
   return json({
     ...summary,
     inviteLink,
-    firstTaskReward: game.referral.firstTaskReward,
-    allAdsBonus: game.referral.allAdsBonus,
+    commissionPct: game.referral.commissionPct,
   });
 }

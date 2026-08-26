@@ -44,8 +44,9 @@ export const game = {
   ],
 
   referral: {
-    firstTaskReward: 5,
-    allAdsBonus: 50,
+    // Inviter earns this % of EVERYTHING their referred friends mine/earn,
+    // credited automatically each time the friend earns. Lifetime, no cap.
+    commissionPct: 5,
   },
 
   withdraw: {

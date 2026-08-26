@@ -80,9 +80,8 @@ export type FriendData = {
   earning: number;
   earned: number;
   inviteLink: string;
-  firstTaskReward: number;
-  allAdsBonus: number;
-  friends: Array<{ name: string; earning: boolean; joinedAt: number }>;
+  commissionPct: number;
+  friends: Array<{ name: string; earning: boolean; earned: number; joinedAt: number }>;
 };
 
 export type HistoryItem = {

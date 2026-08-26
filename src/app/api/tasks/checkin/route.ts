@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { authed, unauthorized, badRequest, userResponse } from '@/lib/api';
 import { sql, credit, getUser, dayKey, nowMs } from '@/lib/db';
 import { game } from '@/lib/config';
-import { onUserEarned } from '@/lib/referrals';
+import { referralEarn } from '@/lib/referrals';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   if (!rowCount) return badRequest('already checked in today');
 
   await credit(u.id, reward, 'checkin', `Daily Check-In · Day ${day}`);
-  await onUserEarned(u.id);
+  await referralEarn(u.id, reward);
 
   return userResponse(u.id, { day, reward });
 }

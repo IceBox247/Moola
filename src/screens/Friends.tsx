@@ -42,7 +42,10 @@ export function FriendsScreen() {
         <h1 className="text-2xl font-black">
           <span className="neon-text">Friends</span>
         </h1>
-        <p className="text-sm text-white/50">Earn MOOLA when friends complete tasks — not just for joining.</p>
+        <p className="text-sm text-white/50">
+          Earn <span className="gold-text font-bold">{data?.commissionPct ?? 5}%</span> of everything your friends mine
+          &amp; earn — forever.
+        </p>
       </div>
 
       {/* Stat hero */}
@@ -95,8 +98,8 @@ export function FriendsScreen() {
             </div>
 
             <div className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-gold-400/40 bg-gold-500/[0.06] px-4 py-2">
-              <span className="gold-text text-base font-black">+{data.firstTaskReward} MOOLA</span>
-              <span className="text-[11px] text-white/55">per friend&apos;s 1st task</span>
+              <span className="gold-text text-base font-black">{data.commissionPct}% commission</span>
+              <span className="text-[11px] text-white/55">of all their earnings</span>
             </div>
           </div>
         ) : (
@@ -106,8 +109,8 @@ export function FriendsScreen() {
 
       {/* Rules */}
       <div className="space-y-2">
-        <Rule icon="✅" text={<>Get <b className="gold-text">+{data?.firstTaskReward ?? 5} MOOLA</b> when a friend completes their <b>first</b> ad or social task.</>} />
-        <Rule icon="🎁" text={<>Get a <b className="gold-text">+{data?.allAdsBonus ?? 50} MOOLA</b> bonus when a friend finishes <b>all</b> of their daily ads.</>} />
+        <Rule icon="💸" text={<>Earn <b className="gold-text">{data?.commissionPct ?? 5}%</b> of <b>everything</b> your friends mine, claim, and earn from tasks — automatically.</>} />
+        <Rule icon="♾️" text={<>It&apos;s <b>lifetime</b> and uncapped — the more your friends grind, the more you earn, forever.</>} />
         <Rule icon="👋" text={<>Friends who only tap <b>Start</b> earn you nothing yet — they appear below so you can remind them.</>} />
       </div>
 
@@ -155,9 +158,14 @@ export function FriendsScreen() {
                     <div className="text-[11px] text-white/40">{timeAgo(f.joinedAt)}</div>
                   </div>
                 </div>
-                <span className={`chip ${f.earning ? 'bg-moo-500/15 text-moo-300' : 'bg-white/8 text-white/50'}`}>
-                  {f.earning ? 'Earning' : 'Remind'}
-                </span>
+                {f.earning ? (
+                  <div className="text-right">
+                    <div className="text-sm font-black neon-text">{fmt(f.earned, 0)}</div>
+                    <div className="text-[10px] text-white/40">they&apos;ve earned</div>
+                  </div>
+                ) : (
+                  <span className="chip bg-white/8 text-white/50">Remind</span>
+                )}
               </div>
             ))}
           </div>

@@ -1,45 +1,33 @@
-import { sql, credit, dayKey, getUser } from './db';
+import { sql, credit, getUser } from './db';
 import { game } from './config';
 
 /**
- * The first time a referred user earns anything, their inviter gets the
- * "first task" reward.
+ * Pay the inviter their commission whenever a referred friend earns MOOLA.
+ * Call this AFTER crediting the friend, with the positive amount the friend
+ * just earned. The inviter receives `commissionPct`% of it (minted on top —
+ * the friend keeps their full amount). Lifetime, uncapped, direct referrals.
  */
-export async function onUserEarned(userId: string): Promise<void> {
-  const u = await getUser(userId);
-  if (!u || !u.referred_by || u.ref_first_done) return;
-
-  // Guard against double-pay with a conditional update.
-  const { rowCount } = await sql`
-    UPDATE users SET ref_first_done = TRUE
-    WHERE id = ${userId} AND ref_first_done = FALSE;
-  `;
-  if (rowCount) {
-    await credit(u.referred_by, game.referral.firstTaskReward, 'referral', `Friend's first task`);
-  }
-}
-
-/** When a user finishes ALL daily ads, inviter gets a bonus once per day. */
-export async function onFriendFinishedAllAds(userId: string): Promise<void> {
+export async function referralEarn(userId: string, amount: number): Promise<void> {
+  if (!amount || amount <= 0) return;
   const u = await getUser(userId);
   if (!u || !u.referred_by) return;
-  const today = dayKey();
-  if (u.ads_all_bonus_day === today) return;
 
-  const { rowCount } = await sql`
-    UPDATE users SET ads_all_bonus_day = ${today}
-    WHERE id = ${userId} AND (ads_all_bonus_day IS DISTINCT FROM ${today});
-  `;
-  if (rowCount) {
-    await credit(u.referred_by, game.referral.allAdsBonus, 'referral', `Friend finished all daily ads`);
-  }
+  const commission = Math.round(amount * game.referral.commissionPct) / 100;
+  if (commission <= 0) return;
+
+  await credit(
+    u.referred_by,
+    commission,
+    'referral',
+    `${game.referral.commissionPct}% from ${u.first_name}`
+  );
 }
 
 export async function friendSummary(userId: string) {
   const { rows } = await sql`
-    SELECT first_name, ref_first_done, created_at
+    SELECT first_name, lifetime, created_at
     FROM users WHERE referred_by = ${userId}
-    ORDER BY created_at DESC;
+    ORDER BY lifetime DESC, created_at DESC;
   `;
   const earnedRow = await sql`
     SELECT COALESCE(SUM(amount),0) AS s FROM transactions
@@ -47,11 +35,12 @@ export async function friendSummary(userId: string) {
   `;
   return {
     invited: rows.length,
-    earning: rows.filter((r) => Boolean(r.ref_first_done)).length,
+    earning: rows.filter((r) => Number(r.lifetime) > 0).length,
     earned: Math.round(Number(earnedRow.rows[0].s) * 100) / 100,
     friends: rows.map((r) => ({
       name: String(r.first_name),
-      earning: Boolean(r.ref_first_done),
+      earning: Number(r.lifetime) > 0,
+      earned: Math.round(Number(r.lifetime) * 100) / 100,
       joinedAt: Number(r.created_at),
     })),
   };
