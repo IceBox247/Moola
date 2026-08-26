@@ -183,6 +183,36 @@ export const nfts: NftDef[] = [
     requiredLevel: 10,
     blurb: 'Master of the blade and the blockchain.',
   },
+  {
+    id: 'bubble',
+    name: 'Bubble Moola',
+    image: '/nft/bubble.webp',
+    rarity: 'Common',
+    boostPct: 6,
+    unlock: 'mint',
+    costMoola: 50,
+    blurb: 'Cap backwards, bubblegum popping. Pure vibes.',
+  },
+  {
+    id: 'thug',
+    name: 'OG Moola',
+    image: '/nft/thug.webp',
+    rarity: 'Epic',
+    boostPct: 20,
+    unlock: 'mint',
+    costMoola: 320,
+    blurb: 'Deal-with-it shades. Never sells the dip.',
+  },
+  {
+    id: 'beanie',
+    name: 'Frost Moola',
+    image: '/nft/beanie.webp',
+    rarity: 'Rare',
+    boostPct: 14,
+    unlock: 'mint',
+    costMoola: 180,
+    blurb: 'Puffer jacket on, cold enough to HODL.',
+  },
 ];
 
 export function nftById(id: string): NftDef | undefined {
