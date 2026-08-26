@@ -1,151 +1,113 @@
 'use client';
 
 /**
- * Self-contained WebAudio sound engine — no audio files required.
- * Generates a subtle "mining rig" ambience plus reward chimes procedurally,
- * so it works offline and adds zero asset weight.
+ * Sound engine using real audio clips (public/sounds).
+ * - moo:      the cow single-moo — plays on a mining claim
+ * - coin:     gold-coin prize — check-ins, mints, big rewards
+ * - cowbell:  soft cowbell — small rewards / confirmations
+ * - barn:     low farm ambience loop while mining
+ * All royalty-free (Mixkit, free for commercial use).
  */
 
-let ctx: AudioContext | null = null;
-let master: GainNode | null = null;
-let ambience: { stop: () => void } | null = null;
+type Key = 'moo' | 'coin' | 'cowbell' | 'barn';
 
-function getCtx(): AudioContext | null {
+const FILES: Record<Key, string> = {
+  moo: '/sounds/moo.mp3',
+  coin: '/sounds/coin.mp3',
+  cowbell: '/sounds/cowbell.mp3',
+  barn: '/sounds/barn.mp3',
+};
+
+const VOL: Record<Key, number> = { moo: 0.8, coin: 0.6, cowbell: 0.4, barn: 0.22 };
+
+const cache: Partial<Record<Key, HTMLAudioElement>> = {};
+let unlocked = false;
+let ambienceOn = false;
+let fadeTimer: ReturnType<typeof setInterval> | null = null;
+
+function el(key: Key): HTMLAudioElement | null {
   if (typeof window === 'undefined') return null;
-  if (!ctx) {
-    const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AC) return null;
+  if (!cache[key]) {
     try {
-      ctx = new AC();
-      master = ctx.createGain();
-      master.gain.value = 0.9;
-      master.connect(ctx.destination);
+      const a = new Audio(FILES[key]);
+      a.preload = 'auto';
+      a.volume = VOL[key];
+      if (key === 'barn') a.loop = true;
+      cache[key] = a;
     } catch {
       return null;
     }
   }
-  return ctx;
+  return cache[key] ?? null;
 }
 
-/** Must be called from a user gesture to satisfy autoplay policies. */
+/** Call from a user gesture to satisfy autoplay policies. */
 export function enableAudio() {
-  const c = getCtx();
-  if (c && c.state === 'suspended') c.resume().catch(() => {});
+  if (unlocked || typeof window === 'undefined') return;
+  unlocked = true;
+  (Object.keys(FILES) as Key[]).forEach((k) => el(k)?.load());
 }
 
-function noiseBuffer(c: AudioContext, seconds = 2): AudioBuffer {
-  const len = Math.floor(c.sampleRate * seconds);
-  const buf = c.createBuffer(1, len, c.sampleRate);
-  const data = buf.getChannelData(0);
-  let last = 0;
-  for (let i = 0; i < len; i++) {
-    // brown-ish noise
-    const white = Math.random() * 2 - 1;
-    last = (last + 0.02 * white) / 1.02;
-    data[i] = last * 3.2;
+function play(key: Key) {
+  const a = el(key);
+  if (!a) return;
+  try {
+    const node = a.cloneNode(true) as HTMLAudioElement;
+    node.volume = VOL[key];
+    void node.play();
+  } catch {
+    /* ignore */
   }
-  return buf;
 }
 
-/** Start the looping mining-rig ambience (idempotent). */
+/** The star — a real cow moo. */
+export function moo() {
+  play('moo');
+}
+/** Gold-coin reward chime. */
+export function coinChime() {
+  play('coin');
+}
+/** Soft cowbell for small confirmations. */
+export function blip() {
+  play('cowbell');
+}
+
 export function startAmbience() {
-  const c = getCtx();
-  if (!c || !master) return;
-  enableAudio();
-  if (ambience) return;
-
-  // Low hum
-  const hum = c.createOscillator();
-  hum.type = 'sawtooth';
-  hum.frequency.value = 58;
-  const humGain = c.createGain();
-  humGain.gain.value = 0.015;
-
-  // Filtered noise bed
-  const noise = c.createBufferSource();
-  noise.buffer = noiseBuffer(c, 2);
-  noise.loop = true;
-  const lp = c.createBiquadFilter();
-  lp.type = 'lowpass';
-  lp.frequency.value = 420;
-  const noiseGain = c.createGain();
-  noiseGain.gain.value = 0.05;
-
-  // Slow LFO wobbling the filter for "movement"
-  const lfo = c.createOscillator();
-  lfo.frequency.value = 0.15;
-  const lfoGain = c.createGain();
-  lfoGain.gain.value = 140;
-  lfo.connect(lfoGain).connect(lp.frequency);
-
-  hum.connect(humGain).connect(master);
-  noise.connect(lp).connect(noiseGain).connect(master);
-
-  // fade in
-  const now = c.currentTime;
-  humGain.gain.setValueAtTime(0, now);
-  humGain.gain.linearRampToValueAtTime(0.015, now + 0.6);
-  noiseGain.gain.setValueAtTime(0, now);
-  noiseGain.gain.linearRampToValueAtTime(0.05, now + 0.6);
-
-  hum.start();
-  noise.start();
-  lfo.start();
-
-  ambience = {
-    stop: () => {
-      try {
-        const t = c.currentTime;
-        humGain.gain.cancelScheduledValues(t);
-        noiseGain.gain.cancelScheduledValues(t);
-        humGain.gain.linearRampToValueAtTime(0, t + 0.3);
-        noiseGain.gain.linearRampToValueAtTime(0, t + 0.3);
-        hum.stop(t + 0.35);
-        noise.stop(t + 0.35);
-        lfo.stop(t + 0.35);
-      } catch {
-        /* ignore */
-      }
-    },
-  };
+  const a = el('barn');
+  if (!a || ambienceOn) return;
+  ambienceOn = true;
+  if (fadeTimer) clearInterval(fadeTimer);
+  a.volume = 0;
+  a.currentTime = 0;
+  void a.play().catch(() => {});
+  const target = VOL.barn;
+  fadeTimer = setInterval(() => {
+    a.volume = Math.min(target, a.volume + 0.02);
+    if (a.volume >= target && fadeTimer) {
+      clearInterval(fadeTimer);
+      fadeTimer = null;
+    }
+  }, 60);
 }
 
 export function stopAmbience() {
-  ambience?.stop();
-  ambience = null;
-}
-
-function tone(freq: number, start: number, dur: number, gain = 0.12, type: OscillatorType = 'sine') {
-  const c = getCtx();
-  if (!c || !master) return;
-  const osc = c.createOscillator();
-  const g = c.createGain();
-  osc.type = type;
-  osc.frequency.value = freq;
-  const t = c.currentTime + start;
-  g.gain.setValueAtTime(0, t);
-  g.gain.linearRampToValueAtTime(gain, t + 0.01);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  osc.connect(g).connect(master);
-  osc.start(t);
-  osc.stop(t + dur + 0.02);
-}
-
-/** Bright ascending chime for claims / big rewards. */
-export function coinChime() {
-  enableAudio();
-  tone(880, 0, 0.16, 0.14, 'triangle');
-  tone(1174, 0.08, 0.18, 0.12, 'triangle');
-  tone(1568, 0.16, 0.28, 0.1, 'sine');
-}
-
-/** Short soft blip for small rewards / confirmations. */
-export function blip() {
-  enableAudio();
-  tone(660, 0, 0.1, 0.09, 'sine');
-  tone(990, 0.06, 0.12, 0.07, 'sine');
+  const a = cache.barn;
+  ambienceOn = false;
+  if (!a) return;
+  if (fadeTimer) clearInterval(fadeTimer);
+  fadeTimer = setInterval(() => {
+    a.volume = Math.max(0, a.volume - 0.03);
+    if (a.volume <= 0.01) {
+      a.pause();
+      if (fadeTimer) {
+        clearInterval(fadeTimer);
+        fadeTimer = null;
+      }
+    }
+  }, 50);
 }
 
 export function isAmbiencePlaying() {
-  return !!ambience;
+  return ambienceOn;
 }

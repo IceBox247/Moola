@@ -8,7 +8,7 @@ import { api } from '@/lib/client';
 import { AnimatedNumber, Skeleton } from '@/components/ui';
 import { fmt, timeAgo } from '@/lib/format';
 import { haptic, notify } from '@/lib/telegram';
-import { enableAudio, blip, startAmbience, stopAmbience } from '@/lib/sound';
+import { enableAudio, moo, startAmbience, stopAmbience } from '@/lib/sound';
 import type { HistoryItem, PublicUser } from '@/lib/types';
 
 const KIND_ICON: Record<string, string> = {
@@ -41,10 +41,10 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
     enableAudio();
     const next = !u.soundFx;
     if (next) {
-      // immediate audible confirmation + a short ambience preview
-      blip();
+      // immediate audible confirmation — a real moo + short ambience preview
+      moo();
       startAmbience();
-      if (!u.mining.active) setTimeout(stopAmbience, 1800);
+      if (!u.mining.active) setTimeout(stopAmbience, 2400);
     } else {
       stopAmbience();
     }

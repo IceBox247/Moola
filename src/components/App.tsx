@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useStore } from '@/lib/store';
+import { ErrorBoundary } from './ErrorBoundary';
 import { enableAudio, startAmbience, stopAmbience } from '@/lib/sound';
 import { BootScreen } from './BootScreen';
 import { Onboarding } from './Onboarding';
@@ -54,21 +55,20 @@ export function App() {
     <>
       <Toasts />
       <main className="safe-bottom min-h-screen px-4 pt-4">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={tab}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.22 }}
-          >
+        <motion.div
+          key={tab}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.22 }}
+        >
+          <ErrorBoundary key={tab}>
             {tab === 'mine' && <MineScreen />}
             {tab === 'tasks' && <TasksScreen />}
             {tab === 'nfts' && <NftScreen />}
             {tab === 'friends' && <FriendsScreen />}
             {tab === 'profile' && <ProfileScreen goMine={() => setTab('mine')} />}
-          </motion.div>
-        </AnimatePresence>
+          </ErrorBoundary>
+        </motion.div>
       </main>
       <BottomNav tab={tab} onChange={setTab} />
     </>

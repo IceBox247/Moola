@@ -7,7 +7,7 @@ import { useStore } from '@/lib/store';
 import { AnimatedNumber, ProgressBar } from '@/components/ui';
 import { fmt, countdown, shortAddr } from '@/lib/format';
 import { haptic, notify } from '@/lib/telegram';
-import { enableAudio, coinChime, blip } from '@/lib/sound';
+import { enableAudio, moo, blip } from '@/lib/sound';
 import type { PublicUser } from '@/lib/types';
 
 function useNow(active: boolean) {
@@ -55,7 +55,7 @@ export function MineScreen() {
       } else {
         const res = await act<{ user: PublicUser; claimed: number }>('mine/claim');
         notify('success');
-        if (user!.soundFx) coinChime();
+        if (user!.soundFx) moo();
         toast(`+${fmt(res.claimed ?? 0, 4)} MOOLA claimed`, 'good');
       }
     } finally {
