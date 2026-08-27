@@ -1,5 +1,6 @@
 import { StonApiClient } from '@ston-fi/api';
 import { dexFactory, Client } from '@ston-fi/sdk';
+import { getHttpEndpoint } from '@orbs-network/ton-access';
 import { env } from './config';
 
 /**
@@ -10,8 +11,15 @@ import { env } from './config';
  * message, which the client signs with the user's connected wallet.
  */
 
-const TONCENTER_ENDPOINT = 'https://toncenter.com/api/v2/jsonRPC';
 const DEFAULT_SLIPPAGE = '0.02'; // 2%
+
+// Resolve a reliable, Vercel-friendly RPC endpoint via Orbs TON Access
+// (public toncenter rate-limits shared serverless IPs). Cached per warm fn.
+let endpointPromise: Promise<string> | null = null;
+function rpcEndpoint(): Promise<string> {
+  if (!endpointPromise) endpointPromise = getHttpEndpoint();
+  return endpointPromise;
+}
 
 // STON.fi's simulate endpoint wants the proxy-TON (pTON) master address for the
 // native side, not the literal string "ton". This is pTON v2.1, which STON.fi's
@@ -28,9 +36,10 @@ function apiClient() {
   return new StonApiClient();
 }
 
-function tonClient() {
+async function tonClient() {
+  const endpoint = await rpcEndpoint();
   const apiKey = process.env.TONCENTER_API_KEY || undefined;
-  return new Client({ endpoint: TONCENTER_ENDPOINT, apiKey });
+  return new Client({ endpoint, apiKey });
 }
 
 export type SwapQuote = {
@@ -65,8 +74,7 @@ export async function buildBuyMoolaTx(
   offerNanoTon: string,
   slippage = DEFAULT_SLIPPAGE
 ): Promise<{ message: SwapMessage; quote: SwapQuote }> {
-  const client = apiClient();
-  const sim = await client.simulateSwap({
+  const sim = await apiClient().simulateSwap({
     offerAddress: PTON_MASTER,
     askAddress: moolaJetton(),
     offerUnits: offerNanoTon,
@@ -75,17 +83,29 @@ export async function buildBuyMoolaTx(
 
   const { router: routerInfo } = sim;
   const contracts = dexFactory(routerInfo);
-  const router = tonClient().open(contracts.Router.create(routerInfo.address));
   const proxyTon = contracts.pTON.create(routerInfo.ptonMasterAddress);
 
-  const txParams = await router.getSwapTonToJettonTxParams({
-    userWalletAddress,
-    proxyTon,
-    offerAmount: sim.offerUnits,
-    askJettonAddress: sim.askAddress,
-    minAskAmount: sim.minAskUnits,
-    queryId: Date.now(),
-  });
+  // Build the tx params, retrying once on a transient RPC/get-method hiccup
+  // (Orbs load-balances across many nodes; a stale one can throw exit_code -13).
+  const buildParams = async () => {
+    const client = await tonClient();
+    const router = client.open(contracts.Router.create(routerInfo.address));
+    return router.getSwapTonToJettonTxParams({
+      userWalletAddress,
+      proxyTon,
+      offerAmount: sim.offerUnits,
+      askJettonAddress: sim.askAddress,
+      minAskAmount: sim.minAskUnits,
+      queryId: Date.now(),
+    });
+  };
+  let txParams;
+  try {
+    txParams = await buildParams();
+  } catch {
+    endpointPromise = null; // re-resolve to a fresh node
+    txParams = await buildParams();
+  }
 
   return {
     message: {

@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
+    "@orbs-network/ton-access": "^2.3.3",
     "@ston-fi/api": "^0.32.0",
     "@ston-fi/sdk": "^2.7.0",
     "@ton/core": "^0.63.1",

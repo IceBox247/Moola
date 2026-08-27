@@ -4,7 +4,7 @@ const nextConfig = {
   // Keep the heavy TON/STON.fi SDKs out of the serverless function bundle so
   // the swap API routes deploy reliably (they're loaded from node_modules at
   // runtime instead of being bundled, which otherwise bloats/breaks the fn).
-  serverExternalPackages: ['@ston-fi/sdk', '@ston-fi/api', '@ton/ton', '@ton/core'],
+  serverExternalPackages: ['@ston-fi/sdk', '@ston-fi/api', '@ton/ton', '@ton/core', '@orbs-network/ton-access'],
   // Our art is already compressed webp; skip the image optimizer so remote
   // Telegram avatars work without domain config and Vercel stays zero-fuss.
   images: { unoptimized: true },
