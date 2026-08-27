@@ -39,10 +39,11 @@ export function BuySheet({
   const [err, setErr] = useState<string | null>(null);
   const seq = useRef(0);
 
-  // Debounced quote + (when connected) pre-build the signable message. We build
-  // it AHEAD of the tap so the Swap handler can call sendTransaction with no
-  // awaited network call in between — otherwise the async gap eats the tap's
-  // user-activation and the wallet never opens.
+  // Debounced quote for the estimate (lightweight, always works), plus — when a
+  // wallet is connected — pre-build the signable message in the background so
+  // the Swap tap can call sendTransaction with no awaited network call in
+  // between (an async gap there would eat the tap's user-activation and the
+  // wallet would never open). The pre-build never blocks or errors the display.
   useEffect(() => {
     if (!open) return;
     const amt = Number(ton);
@@ -57,42 +58,45 @@ export function BuySheet({
     setErr(null);
     const t = setTimeout(async () => {
       try {
-        if (address) {
-          const r = await api<{ message: SwapMsg; askMoola: number; minMoola: number }>('swap/build', {
-            ton: amt,
-            address,
-          });
-          if (id === seq.current) {
-            setMsg(r.message);
-            setQuote({ askMoola: r.askMoola, minMoola: r.minMoola });
-          }
-        } else {
-          const r = await api<{ askMoola: number; minMoola: number }>('swap/quote', { ton: amt });
-          if (id === seq.current) setQuote(r);
-        }
+        const r = await api<{ askMoola: number; minMoola: number }>('swap/quote', { ton: amt });
+        if (id === seq.current) setQuote(r);
       } catch (e) {
         if (id === seq.current) {
           setQuote(null);
-          setMsg(null);
           setErr((e as Error).message || 'No route yet');
         }
       } finally {
         if (id === seq.current) setQuoting(false);
+      }
+      // Background pre-build (best effort) — don't surface its errors.
+      if (address) {
+        api<{ message: SwapMsg }>('swap/build', { ton: amt, address })
+          .then((b) => {
+            if (id === seq.current) setMsg(b.message);
+          })
+          .catch(() => {});
       }
     }, 450);
     return () => clearTimeout(t);
   }, [ton, open, address]);
 
   async function confirm() {
+    const amt = Number(ton);
     if (!address) return toast('Connect your wallet first', 'bad');
-    if (!msg) return toast(quoting ? 'Preparing swap — one sec…' : 'Enter an amount', 'bad');
+    if (!amt || amt <= 0) return toast('Enter an amount', 'bad');
     setBusy(true);
     haptic('heavy');
     try {
-      // No awaited network call before sendTransaction — keep the tap gesture.
+      // Prefer the pre-built message so no network call precedes sendTransaction
+      // (keeps the tap gesture). Fall back to building on-tap if it's not ready.
+      let m = msg;
+      if (!m) {
+        const b = await api<{ message: SwapMsg }>('swap/build', { ton: amt, address });
+        m = b.message;
+      }
       await tonUI.sendTransaction({
         validUntil: Math.floor(Date.now() / 1000) + 300,
-        messages: [{ address: msg.address, amount: msg.amount, payload: msg.payload }],
+        messages: [{ address: m.address, amount: m.amount, payload: m.payload }],
       });
       notify('success');
       playSfx('reward_big');
@@ -190,7 +194,7 @@ export function BuySheet({
             {address ? (
               <button
                 onClick={confirm}
-                disabled={busy || quoting || !msg}
+                disabled={busy || quoting || !quote}
                 className="btn-gold mt-4 w-full py-3.5 disabled:opacity-50"
               >
                 {busy ? 'Confirm in wallet…' : quoting ? 'Preparing…' : 'Swap in wallet'}
