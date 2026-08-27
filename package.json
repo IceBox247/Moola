@@ -17,6 +17,7 @@
     "@ton/core": "^0.63.1",
     "@ton/ton": "^16.3.0",
     "@tonconnect/ui-react": "^3.0.2",
+    "buffer": "^6.0.3",
     "framer-motion": "^11.15.0",
     "next": "15.5.24",
     "react": "19.0.0",

@@ -1,25 +1,18 @@
 import { StonApiClient } from '@ston-fi/api';
-import { dexFactory, Client } from '@ston-fi/sdk';
-import { getHttpEndpoint } from '@orbs-network/ton-access';
+import { dexFactory } from '@ston-fi/sdk';
 import { env } from './config';
 
 /**
  * Server-side STON.fi swap builder for buying MOOLA with the native coin (TON /
- * GRAM). We use the STON.fi API to simulate the swap — this also returns the
- * correct router + pTON addresses for whichever pool holds MOOLA, so we never
- * hardcode (and mis-target) a router. The SDK then builds the exact on-chain
- * message, which the client signs with the user's connected wallet.
+ * GRAM). We simulate via the STON.fi API — which returns the correct router +
+ * pTON addresses AND both jetton-wallet addresses for whichever pool holds
+ * MOOLA — then build the exact on-chain message with the SDK's pure cell
+ * builders. Because the simulate already gives us the wallet addresses, no
+ * on-chain RPC (and therefore no heavy @ton/ton client) is needed — which keeps
+ * this route small enough to deploy reliably as a serverless function.
  */
 
 const DEFAULT_SLIPPAGE = '0.02'; // 2%
-
-// Resolve a reliable, Vercel-friendly RPC endpoint via Orbs TON Access
-// (public toncenter rate-limits shared serverless IPs). Cached per warm fn.
-let endpointPromise: Promise<string> | null = null;
-function rpcEndpoint(): Promise<string> {
-  if (!endpointPromise) endpointPromise = getHttpEndpoint();
-  return endpointPromise;
-}
 
 // STON.fi's simulate endpoint wants the proxy-TON (pTON) master address for the
 // native side, not the literal string "ton". This is pTON v2.1, which STON.fi's
@@ -36,10 +29,27 @@ function apiClient() {
   return new StonApiClient();
 }
 
-async function tonClient() {
-  const endpoint = await rpcEndpoint();
-  const apiKey = process.env.TONCENTER_API_KEY || undefined;
-  return new Client({ endpoint, apiKey });
+/**
+ * A no-op contract "provider": the SDK's tx-param methods take a provider and
+ * call `provider.open(contract).method(...)`. Since we pass every address the
+ * methods would otherwise fetch over RPC, the provider is never used for a
+ * network call — it only needs to re-bind each opened contract's methods.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function stubProvider(): any {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const provider: any = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    open: (contract: any) =>
+      new Proxy(
+        {},
+        {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          get: (_t, m: string) => (...args: any[]) => contract[m](provider, ...args),
+        }
+      ),
+  };
+  return provider;
 }
 
 export type SwapQuote = {
@@ -48,14 +58,18 @@ export type SwapQuote = {
   minMoola: number; // guaranteed minimum out after slippage (human units)
 };
 
-/** Simulate buying MOOLA with `offerNanoTon` nanotons. Cheap, no RPC. */
-export async function quoteBuyMoola(offerNanoTon: string, slippage = DEFAULT_SLIPPAGE): Promise<SwapQuote> {
-  const sim = await apiClient().simulateSwap({
+async function simulate(offerNanoTon: string, slippage: string) {
+  return apiClient().simulateSwap({
     offerAddress: PTON_MASTER,
     askAddress: moolaJetton(),
     offerUnits: offerNanoTon,
     slippageTolerance: slippage,
   });
+}
+
+/** Simulate buying MOOLA with `offerNanoTon` nanotons. Cheap, no RPC. */
+export async function quoteBuyMoola(offerNanoTon: string, slippage = DEFAULT_SLIPPAGE): Promise<SwapQuote> {
+  const sim = await simulate(offerNanoTon, slippage);
   return {
     offerNanoTon,
     askMoola: Number(sim.askUnits) / 1e9,
@@ -74,38 +88,24 @@ export async function buildBuyMoolaTx(
   offerNanoTon: string,
   slippage = DEFAULT_SLIPPAGE
 ): Promise<{ message: SwapMessage; quote: SwapQuote }> {
-  const sim = await apiClient().simulateSwap({
-    offerAddress: PTON_MASTER,
-    askAddress: moolaJetton(),
-    offerUnits: offerNanoTon,
-    slippageTolerance: slippage,
-  });
+  const sim = await simulate(offerNanoTon, slippage);
 
-  const { router: routerInfo } = sim;
-  const contracts = dexFactory(routerInfo);
-  const proxyTon = contracts.pTON.create(routerInfo.ptonMasterAddress);
+  const contracts = dexFactory(sim.router);
+  const router = contracts.Router.create(sim.router.address);
+  const proxyTon = contracts.pTON.create(sim.router.ptonMasterAddress);
 
-  // Build the tx params, retrying once on a transient RPC/get-method hiccup
-  // (Orbs load-balances across many nodes; a stale one can throw exit_code -13).
-  const buildParams = async () => {
-    const client = await tonClient();
-    const router = client.open(contracts.Router.create(routerInfo.address));
-    return router.getSwapTonToJettonTxParams({
-      userWalletAddress,
-      proxyTon,
-      offerAmount: sim.offerUnits,
-      askJettonAddress: sim.askAddress,
-      minAskAmount: sim.minAskUnits,
-      queryId: Date.now(),
-    });
-  };
-  let txParams;
-  try {
-    txParams = await buildParams();
-  } catch {
-    endpointPromise = null; // re-resolve to a fresh node
-    txParams = await buildParams();
-  }
+  // No RPC: we pass the jetton-wallet addresses straight from the simulation,
+  // so the SDK builds the message from pure cell builders alone.
+  const txParams = await router.getSwapTonToJettonTxParams(stubProvider(), {
+    userWalletAddress,
+    proxyTon,
+    offerAmount: sim.offerUnits,
+    askJettonWalletAddress: sim.askJettonWallet,
+    offerJettonWalletAddress: sim.offerJettonWallet,
+    minAskAmount: sim.minAskUnits,
+    queryId: Date.now(),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any);
 
   return {
     message: {
