@@ -88,7 +88,7 @@ export async function sendMoola(toAddress: string, amountMoola: number): Promise
       .storeAddress(dest) // destination (the user)
       .storeAddress(wallet.address) // response destination — excess TON returns to hot wallet
       .storeBit(0) // no custom payload
-      .storeCoins(toNano('0.02')) // forward TON for the recipient's transfer notification
+      .storeCoins(toNano('0.05')) // forward TON — covers recipient jetton-wallet deploy + notify
       .storeBit(0) // empty forward payload
       .endCell();
 
@@ -99,7 +99,7 @@ export async function sendMoola(toAddress: string, amountMoola: number): Promise
       messages: [
         internal({
           to: jettonWallet,
-          value: toNano('0.06'), // gas + forward amount
+          value: toNano('0.12'), // gas + forward (0.05) + recipient wallet deploy headroom
           body,
           bounce: true,
         }),
