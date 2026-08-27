@@ -5,18 +5,27 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/client';
-import { AnimatedNumber, Skeleton } from '@/components/ui';
+import { AnimatedNumber } from '@/components/ui';
 import { fmt, timeAgo } from '@/lib/format';
 import { haptic, openLink, tg } from '@/lib/telegram';
 import type { FriendData } from '@/lib/types';
 
+// Module-level cache so re-opening the tab shows last data instantly while it
+// refreshes in the background (no big empty box on every visit).
+let friendsCache: FriendData | null = null;
+
 export function FriendsScreen() {
   const { toast } = useStore();
-  const [data, setData] = useState<FriendData | null>(null);
+  const [data, setData] = useState<FriendData | null>(friendsCache);
   const [reminding, setReminding] = useState<string | null>(null);
 
   useEffect(() => {
-    api<FriendData>('friends').then(setData).catch(() => {});
+    api<FriendData>('friends')
+      .then((d) => {
+        friendsCache = d;
+        setData(d);
+      })
+      .catch(() => {});
   }, []);
 
   async function remind(friendId: string) {
@@ -74,53 +83,49 @@ export function FriendsScreen() {
           height={180}
           className="pointer-events-none absolute -right-6 -top-8 rotate-12 opacity-[0.12]"
         />
-        {data ? (
-          <div className="relative text-center">
-            {/* herd */}
-            <div className="mb-3 flex justify-center -space-x-3">
-              {['genesis', 'cyber', 'samurai', 'astronaut'].map((id, idx) => (
-                <motion.div
-                  key={id}
-                  initial={{ opacity: 0, y: 8, scale: 0.8 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ delay: idx * 0.08 }}
-                  className="h-11 w-11 overflow-hidden rounded-full border-2 border-ink-850 bg-ink-800 shadow-neon"
-                >
-                  <Image src={`/nft/${id}.webp`} alt="" width={44} height={44} className="h-full w-full object-cover" />
-                </motion.div>
-              ))}
-            </div>
+        <div className="relative text-center">
+          {/* herd */}
+          <div className="mb-3 flex justify-center -space-x-3">
+            {['genesis', 'cyber', 'samurai', 'astronaut'].map((id, idx) => (
+              <motion.div
+                key={id}
+                initial={{ opacity: 0, y: 8, scale: 0.8 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ delay: idx * 0.08 }}
+                className="h-11 w-11 overflow-hidden rounded-full border-2 border-ink-850 bg-ink-800 shadow-neon"
+              >
+                <Image src={`/nft/${id}.webp`} alt="" width={44} height={44} className="h-full w-full object-cover" />
+              </motion.div>
+            ))}
+          </div>
 
-            <div className="label">Earned from friends</div>
-            <div className="text-4xl font-black leading-none">
-              <AnimatedNumber value={data.earned} dp={2} className="neon-text" />{' '}
-              <span className="gold-text text-xl">MOOLA</span>
-            </div>
+          <div className="label">Earned from friends</div>
+          <div className="text-4xl font-black leading-none">
+            <AnimatedNumber value={data?.earned ?? 0} dp={2} className="neon-text" />{' '}
+            <span className="gold-text text-xl">MOOLA</span>
+          </div>
 
-            {/* stat pills */}
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="rounded-2xl border border-white/8 bg-black/25 py-2.5">
-                <div className="text-2xl font-black neon-text">
-                  <AnimatedNumber value={data.earning} dp={0} />
-                </div>
-                <div className="text-[11px] text-white/50">earning now</div>
+          {/* stat pills */}
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-white/8 bg-black/25 py-2.5">
+              <div className="text-2xl font-black neon-text">
+                <AnimatedNumber value={data?.earning ?? 0} dp={0} />
               </div>
-              <div className="rounded-2xl border border-white/8 bg-black/25 py-2.5">
-                <div className="text-2xl font-black text-white">
-                  <AnimatedNumber value={data.invited} dp={0} />
-                </div>
-                <div className="text-[11px] text-white/50">invited</div>
-              </div>
+              <div className="text-[11px] text-white/50">earning now</div>
             </div>
-
-            <div className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-gold-400/40 bg-gold-500/[0.06] px-4 py-2">
-              <span className="gold-text text-base font-black">{data.miningCommissionPct}%</span>
-              <span className="text-[11px] text-white/55">of all their mined MOOLA</span>
+            <div className="rounded-2xl border border-white/8 bg-black/25 py-2.5">
+              <div className="text-2xl font-black text-white">
+                <AnimatedNumber value={data?.invited ?? 0} dp={0} />
+              </div>
+              <div className="text-[11px] text-white/50">invited</div>
             </div>
           </div>
-        ) : (
-          <Skeleton className="mx-auto h-48 w-full" />
-        )}
+
+          <div className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-gold-400/40 bg-gold-500/[0.06] px-4 py-2">
+            <span className="gold-text text-base font-black">{data?.miningCommissionPct ?? 5}%</span>
+            <span className="text-[11px] text-white/55">of all their mined MOOLA</span>
+          </div>
+        </div>
       </div>
 
       {/* Rules */}
