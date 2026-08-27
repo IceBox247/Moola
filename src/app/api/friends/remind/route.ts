@@ -6,7 +6,7 @@ import { sendBotMessage } from '@/lib/telegramBot';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const THROTTLE_MS = 6 * 60 * 60 * 1000; // one reminder per friend per 6h
+const THROTTLE_MS = 60 * 60 * 1000; // light anti-spam: one reminder per friend per hour
 
 /** Send a Telegram nudge from the bot to one of your referred friends. */
 export async function POST(req: NextRequest) {
@@ -22,7 +22,8 @@ export async function POST(req: NextRequest) {
   const last = rows[0]?.reminded_at != null ? Number(rows[0].reminded_at) : 0;
   const now = nowMs();
   if (last && now - last < THROTTLE_MS) {
-    return badRequest('You already reminded them recently — try again later.');
+    const mins = Math.ceil((THROTTLE_MS - (now - last)) / 60000);
+    return badRequest(`Nudged them just now — you can remind again in ${mins} min.`);
   }
 
   const text =
