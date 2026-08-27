@@ -1,0 +1,121 @@
+import { TonClient, WalletContractV4, WalletContractV5R1, JettonMaster, internal } from '@ton/ton';
+import { Address, beginCell, toNano } from '@ton/core';
+import { mnemonicToPrivateKey } from '@ton/crypto';
+import { getHttpEndpoint } from '@orbs-network/ton-access';
+import { env } from './config';
+
+/**
+ * Automated MOOLA jetton payout from the project hot wallet.
+ *
+ * Security model:
+ *  - The hot-wallet mnemonic lives only in WITHDRAW_WALLET_MNEMONIC (env) and is
+ *    never logged or returned.
+ *  - Callers (the payout worker) claim a withdrawal row atomically before
+ *    calling this, so a payout is attempted at most once per row.
+ *  - Fund the hot wallet with only as much MOOLA (+ a little TON for gas) as you
+ *    are comfortable exposing.
+ */
+
+const MOOLA_DECIMALS = 9;
+const JETTON_TRANSFER_OP = 0x0f8a7ea5;
+
+export function payoutConfigured(): boolean {
+  return !!process.env.WITHDRAW_WALLET_MNEMONIC && !!env.MOOLA_JETTON;
+}
+
+let endpointPromise: Promise<string> | null = null;
+function rpc(): Promise<string> {
+  if (!endpointPromise) endpointPromise = getHttpEndpoint();
+  return endpointPromise;
+}
+
+function toJettonUnits(amountMoola: number): bigint {
+  // Round to whole nano-units to avoid float drift.
+  return BigInt(Math.round(amountMoola * 10 ** MOOLA_DECIMALS));
+}
+
+async function openWallet(client: TonClient) {
+  const words = (process.env.WITHDRAW_WALLET_MNEMONIC || '').trim().split(/\s+/);
+  const key = await mnemonicToPrivateKey(words);
+  const version = (process.env.WITHDRAW_WALLET_VERSION || 'v4').toLowerCase();
+  const wallet =
+    version === 'v5' || version === 'v5r1'
+      ? WalletContractV5R1.create({ workchain: 0, publicKey: key.publicKey })
+      : WalletContractV4.create({ workchain: 0, publicKey: key.publicKey });
+  return { wallet, secretKey: key.secretKey };
+}
+
+export type PayoutResult = { ok: true; seqno: number } | { ok: false; error: string };
+
+/** Send `amountMoola` MOOLA to `toAddress`. Broadcasts one external message. */
+export async function sendMoola(toAddress: string, amountMoola: number): Promise<PayoutResult> {
+  if (!payoutConfigured()) return { ok: false, error: 'payout wallet not configured' };
+  let dest: Address;
+  try {
+    dest = Address.parse(toAddress);
+  } catch {
+    return { ok: false, error: 'invalid destination address' };
+  }
+  if (!(amountMoola > 0)) return { ok: false, error: 'invalid amount' };
+
+  try {
+    const client = new TonClient({ endpoint: await rpc() });
+    const { wallet, secretKey } = await openWallet(client);
+    const contract = client.open(wallet);
+
+    // Hot wallet's own MOOLA jetton wallet (source of the transfer).
+    const master = client.open(JettonMaster.create(Address.parse(env.MOOLA_JETTON)));
+    const jettonWallet = await master.getWalletAddress(wallet.address);
+
+    const body = beginCell()
+      .storeUint(JETTON_TRANSFER_OP, 32)
+      .storeUint(BigInt(Date.now()), 64) // query_id
+      .storeCoins(toJettonUnits(amountMoola)) // jetton amount
+      .storeAddress(dest) // destination (the user)
+      .storeAddress(wallet.address) // response destination — excess TON returns to hot wallet
+      .storeBit(0) // no custom payload
+      .storeCoins(toNano('0.02')) // forward TON for the recipient's transfer notification
+      .storeBit(0) // empty forward payload
+      .endCell();
+
+    const seqno = await contract.getSeqno();
+    const transfer = {
+      seqno,
+      secretKey,
+      messages: [
+        internal({
+          to: jettonWallet,
+          value: toNano('0.06'), // gas + forward amount
+          body,
+          bounce: true,
+        }),
+      ],
+    };
+    // V4 and V5R1 both accept this shape for an externally-signed transfer; the
+    // union of their arg types needs a cast to satisfy TS.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (contract as any).sendTransfer(transfer);
+    return { ok: true, seqno };
+  } catch (e) {
+    // Never leak the mnemonic/keys in error text.
+    return { ok: false, error: (e as Error).message || 'payout failed' };
+  }
+}
+
+/** Wait (best effort) for the wallet seqno to advance past `fromSeqno`. */
+export async function waitConfirmed(fromSeqno: number, timeoutMs = 25_000): Promise<boolean> {
+  try {
+    const client = new TonClient({ endpoint: await rpc() });
+    const { wallet } = await openWallet(client);
+    const contract = client.open(wallet);
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const s = await contract.getSeqno();
+      if (s > fromSeqno) return true;
+      await new Promise((r) => setTimeout(r, 2500));
+    }
+  } catch {
+    /* fall through */
+  }
+  return false;
+}

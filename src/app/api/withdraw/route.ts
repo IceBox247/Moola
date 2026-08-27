@@ -2,9 +2,11 @@ import { NextRequest } from 'next/server';
 import { authed, unauthorized, badRequest, userResponse, json } from '@/lib/api';
 import { sql, getUser, addTx, nowMs, withdrawnTotal } from '@/lib/db';
 import { game } from '@/lib/config';
+import { runPayouts } from '@/lib/payoutWorker';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 /**
  * Record a withdrawal request. This debits the user's spendable balance and
@@ -45,6 +47,11 @@ export async function POST(req: NextRequest) {
   await addTx(ctx.user.id, 'withdraw', -amount, `Withdrawal to ${address.slice(0, 6)}…${address.slice(-4)}`);
   // Persist the address for convenience.
   await sql`UPDATE users SET wallet = ${address} WHERE id = ${ctx.user.id};`;
+
+  // Attempt the on-chain payout right away (best effort). If the wallet isn't
+  // configured or the send fails, the row stays queued and the cron sweep +
+  // retry/refund logic handles it — the response never fails on payout error.
+  await runPayouts(3).catch(() => {});
 
   const u = await getUser(ctx.user.id);
   return userResponse(ctx.user.id, { requested: amount, balance: u?.balance ?? 0 });

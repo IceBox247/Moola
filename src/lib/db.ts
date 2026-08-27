@@ -138,6 +138,12 @@ async function initSchema(): Promise<void> {
       created_at BIGINT NOT NULL
     );
   `;
+  // Automated payout state machine columns.
+  await sql`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0;`;
+  await sql`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS tx_hash TEXT;`;
+  await sql`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS last_error TEXT;`;
+  await sql`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS processed_at BIGINT;`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_wd_status ON withdrawals(status, created_at);`;
 }
 
 export function nowMs(): number {
