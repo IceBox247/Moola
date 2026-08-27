@@ -120,6 +120,12 @@ export function MineScreen() {
               <span className="gold-text text-xl font-black">MOOLA</span>
             </div>
 
+            {u.wallet && u.moolaOnchain > 0 && (
+              <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-sky-400/25 bg-sky-500/[0.08] px-3 py-1 text-[11px] font-semibold text-sky-200">
+                👛 {fmt(u.moolaOnchain, 2)} MOOLA in wallet
+              </div>
+            )}
+
             <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-moo-500/30 bg-moo-500/[0.08] px-4 py-1.5">
               <motion.span
                 className="h-2 w-2 rounded-full bg-moo-400"
