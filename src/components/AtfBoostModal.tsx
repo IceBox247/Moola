@@ -59,6 +59,16 @@ export function AtfBoostModal({ open, onClose }: { open: boolean; onClose: () =>
               </h3>
               <p className="text-sm text-white/50">Hold ATF in your wallet to multiply your mining power</p>
 
+              {/* one-time holder bonus */}
+              <div className="mt-3 flex items-center gap-3 rounded-2xl border border-gold-400/40 bg-gold-500/[0.08] p-3 text-left">
+                <div className="text-2xl">🎁</div>
+                <div className="flex-1 text-sm">
+                  <b className="gold-text">+{fmt(u.atfBonus, 0)} MOOLA</b> one-time holder bonus
+                  <div className="text-[11px] text-white/50">Auto-credited the first time we detect ATF.</div>
+                </div>
+                {u.atfBonusClaimed && <span className="chip bg-moo-500 text-ink-900">✓ Got it</span>}
+              </div>
+
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <div className="rounded-2xl border border-white/8 bg-black/25 px-2 py-2">
                   <div className="label">Your ATF</div>

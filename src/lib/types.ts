@@ -43,6 +43,8 @@ export type PublicUser = {
 
   atfUsd: number;
   atfMult: number;
+  atfBonus: number;
+  atfBonusClaimed: boolean;
   moolaOnchain: number;
 
   verified: boolean;

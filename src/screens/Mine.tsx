@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '@/lib/store';
 import { AnimatedNumber, ProgressBar } from '@/components/ui';
-import { fmt, countdown } from '@/lib/format';
+import { fmt, countdown, fmtCompact } from '@/lib/format';
 import { WalletChip } from '@/components/WalletChip';
 import { LevelsModal } from '@/components/LevelsModal';
 import { AtfBoostModal } from '@/components/AtfBoostModal';
@@ -145,7 +145,9 @@ export function MineScreen() {
                     : 'border-white/[0.12] bg-white/[0.05] text-white/60'
                 }`}
               >
-                {u.atfMult > 1 ? `⚡ ${u.atfMult}× ATF boost active ›` : '🤝 Hold ATF for up to 64× boost ›'}
+                {u.atfMult > 1
+                  ? `⚡ ${u.atfMult}× ATF boost active ›`
+                  : `🤝 Hold ATF → 64× boost + ${fmtCompact(u.atfBonus)} bonus ›`}
               </button>
             </div>
           </div>

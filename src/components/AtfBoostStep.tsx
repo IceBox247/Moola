@@ -7,6 +7,7 @@ import { WalletChip } from './WalletChip';
 import { openLink, haptic } from '@/lib/telegram';
 import { stonfiBuyAtf } from '@/lib/links';
 import { game } from '@/lib/config';
+import { fmt } from '@/lib/format';
 
 function usd(n: number) {
   return n >= 1 ? `$${n % 1 === 0 ? n : n.toFixed(2)}` : `$${n.toFixed(2)}`;
@@ -47,6 +48,16 @@ export function AtfBoostStep({ onContinue }: { onContinue: () => void }) {
           Moola proudly supports <b className="text-white">ATF</b> holders. Connect your TON wallet — if you hold ATF,
           your mining rate is boosted <b className="gold-text">instantly</b>, at any level.
         </p>
+
+        {/* one-time holder bonus */}
+        <div className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-gold-400/40 bg-gold-500/[0.08] p-3">
+          <div className="text-2xl">🎁</div>
+          <div className="flex-1 text-left text-sm">
+            <b className="gold-text">+{fmt(u.atfBonus, 0)} MOOLA</b> one-time bonus
+            <div className="text-[11px] text-white/50">Credited automatically the moment we detect ATF.</div>
+          </div>
+          {u.atfBonusClaimed && <span className="chip bg-moo-500 text-ink-900">✓ Got it</span>}
+        </div>
 
         {/* live status */}
         {boosted ? (

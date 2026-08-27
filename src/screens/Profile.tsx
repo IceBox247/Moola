@@ -19,6 +19,7 @@ const KIND_ICON: Record<string, string> = {
   verify_ad: '🔗',
   social: '⭐',
   referral: '🎁',
+  atf_bonus: '🤝',
   mint: '🐮',
   withdraw: '💸',
 };

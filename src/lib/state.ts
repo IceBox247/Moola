@@ -1,4 +1,4 @@
-import { sql, dayKey, nowMs, getUser, type UserRow } from './db';
+import { sql, dayKey, nowMs, getUser, addTx, type UserRow } from './db';
 import {
   game,
   MAX_LEVEL,
@@ -82,6 +82,21 @@ export async function applyWalletScan(u: UserRow, address: string): Promise<User
         moola_onchain = ${moolaOnchain}, last_scan_at = ${nowMs()}
     WHERE id = ${settled.id};
   `;
+
+  // One-time ATF holder bonus: the first scan that detects qualifying ATF
+  // (mult > 1) credits a flat MOOLA reward. The conditional UPDATE guarantees
+  // it's granted exactly once, even under concurrent scans.
+  if (mult > 1) {
+    const bonus = game.atfBoost.holderBonus;
+    const { rows } = await sql`
+      UPDATE users
+      SET balance = balance + ${bonus}, lifetime = lifetime + ${bonus}, atf_bonus_claimed = TRUE
+      WHERE id = ${settled.id} AND atf_bonus_claimed = FALSE
+      RETURNING id;
+    `;
+    if (rows.length > 0) await addTx(settled.id, 'atf_bonus', bonus, 'ATF holder bonus 🤝');
+  }
+
   return (await getUser(settled.id))!;
 }
 
@@ -177,6 +192,8 @@ export function serialize(u: UserRow, socialDone: string[] = [], at = nowMs()) {
     // ATF partnership
     atfUsd: round2(u.atf_usd),
     atfMult,
+    atfBonus: game.atfBoost.holderBonus,
+    atfBonusClaimed: u.atf_bonus_claimed,
     moolaOnchain: round2(u.moola_onchain),
 
     verified: u.verified,

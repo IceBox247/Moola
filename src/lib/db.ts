@@ -54,6 +54,7 @@ export type UserRow = {
   ref_first_done: boolean;
   atf_usd: number;
   atf_mult: number;
+  atf_bonus_claimed: boolean;
   moola_onchain: number;
   last_scan_at: number | null;
   mining_accrued: number;
@@ -118,6 +119,7 @@ async function initSchema(): Promise<void> {
   // On-chain wallet scan results (added post-launch — safe on existing tables).
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS atf_usd DOUBLE PRECISION NOT NULL DEFAULT 0;`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS atf_mult DOUBLE PRECISION NOT NULL DEFAULT 1;`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS atf_bonus_claimed BOOLEAN NOT NULL DEFAULT FALSE;`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS moola_onchain DOUBLE PRECISION NOT NULL DEFAULT 0;`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_scan_at BIGINT;`;
   // Mining is checkpointed so boost only applies while ATF is actually held.
@@ -170,6 +172,7 @@ function rowToUser(r: Record<string, unknown>): UserRow {
     ref_first_done: Boolean(r.ref_first_done),
     atf_usd: r.atf_usd != null ? Number(r.atf_usd) : 0,
     atf_mult: r.atf_mult != null ? Number(r.atf_mult) : 1,
+    atf_bonus_claimed: Boolean(r.atf_bonus_claimed),
     moola_onchain: r.moola_onchain != null ? Number(r.moola_onchain) : 0,
     last_scan_at: r.last_scan_at != null ? Number(r.last_scan_at) : null,
     mining_accrued: r.mining_accrued != null ? Number(r.mining_accrued) : 0,

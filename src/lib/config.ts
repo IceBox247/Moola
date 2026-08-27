@@ -36,6 +36,9 @@ export const game = {
   // ATF partnership: hold ATF in your connected wallet for a mining multiplier.
   // Boost is pure mining power, applied on top of your level, regardless of it.
   atfBoost: {
+    // One-time MOOLA bonus, credited the first time we detect ATF in a
+    // connected wallet (on top of the ongoing mining multiplier).
+    holderBonus: 1000,
     tiers: [
       { minUsd: 0.5, maxUsd: 2, mult: 2 },
       { minUsd: 2, maxUsd: 10, mult: 4 },
