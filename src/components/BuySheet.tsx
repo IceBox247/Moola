@@ -30,17 +30,23 @@ export function BuySheet({
   const [tonUI] = useTonConnectUI();
   const address = useTonAddress();
 
+  type SwapMsg = { address: string; amount: string; payload: string };
   const [ton, setTon] = useState('1');
   const [quote, setQuote] = useState<{ askMoola: number; minMoola: number } | null>(null);
+  const [msg, setMsg] = useState<SwapMsg | null>(null); // pre-built, ready to sign
   const [quoting, setQuoting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const seq = useRef(0);
 
-  // Debounced live quote.
+  // Debounced quote + (when connected) pre-build the signable message. We build
+  // it AHEAD of the tap so the Swap handler can call sendTransaction with no
+  // awaited network call in between — otherwise the async gap eats the tap's
+  // user-activation and the wallet never opens.
   useEffect(() => {
     if (!open) return;
     const amt = Number(ton);
+    setMsg(null);
     if (!amt || amt <= 0) {
       setQuote(null);
       setErr(null);
@@ -51,11 +57,23 @@ export function BuySheet({
     setErr(null);
     const t = setTimeout(async () => {
       try {
-        const r = await api<{ askMoola: number; minMoola: number }>('swap/quote', { ton: amt });
-        if (id === seq.current) setQuote(r);
+        if (address) {
+          const r = await api<{ message: SwapMsg; askMoola: number; minMoola: number }>('swap/build', {
+            ton: amt,
+            address,
+          });
+          if (id === seq.current) {
+            setMsg(r.message);
+            setQuote({ askMoola: r.askMoola, minMoola: r.minMoola });
+          }
+        } else {
+          const r = await api<{ askMoola: number; minMoola: number }>('swap/quote', { ton: amt });
+          if (id === seq.current) setQuote(r);
+        }
       } catch (e) {
         if (id === seq.current) {
           setQuote(null);
+          setMsg(null);
           setErr((e as Error).message || 'No route yet');
         }
       } finally {
@@ -63,22 +81,18 @@ export function BuySheet({
       }
     }, 450);
     return () => clearTimeout(t);
-  }, [ton, open]);
+  }, [ton, open, address]);
 
   async function confirm() {
-    const amt = Number(ton);
-    if (!amt || amt <= 0) return toast('Enter an amount', 'bad');
     if (!address) return toast('Connect your wallet first', 'bad');
+    if (!msg) return toast(quoting ? 'Preparing swap — one sec…' : 'Enter an amount', 'bad');
     setBusy(true);
     haptic('heavy');
     try {
-      const { message } = await api<{ message: { address: string; amount: string; payload: string } }>(
-        'swap/build',
-        { ton: amt, address }
-      );
+      // No awaited network call before sendTransaction — keep the tap gesture.
       await tonUI.sendTransaction({
         validUntil: Math.floor(Date.now() / 1000) + 300,
-        messages: [{ address: message.address, amount: message.amount, payload: message.payload }],
+        messages: [{ address: msg.address, amount: msg.amount, payload: msg.payload }],
       });
       notify('success');
       playSfx('reward_big');
@@ -91,8 +105,8 @@ export function BuySheet({
       }, 6000);
       onClose();
     } catch (e) {
-      const msg = (e as Error).message || 'Swap failed';
-      if (!/reject|cancel|declin/i.test(msg)) toast(msg, 'bad');
+      const m = (e as Error).message || 'Swap failed';
+      if (!/reject|cancel|declin/i.test(m)) toast(m, 'bad');
     } finally {
       setBusy(false);
     }
@@ -176,10 +190,10 @@ export function BuySheet({
             {address ? (
               <button
                 onClick={confirm}
-                disabled={busy || quoting || !quote}
+                disabled={busy || quoting || !msg}
                 className="btn-gold mt-4 w-full py-3.5 disabled:opacity-50"
               >
-                {busy ? 'Confirm in wallet…' : 'Swap in wallet'}
+                {busy ? 'Confirm in wallet…' : quoting ? 'Preparing…' : 'Swap in wallet'}
               </button>
             ) : (
               <div className="mt-4">
