@@ -28,13 +28,14 @@ export const game = {
   },
 
   // Levels are priced in USD, starting at $0.01 for the first paid step and
-  // building up. The USD ladder is snapshotted to MOOLA once at the launch
-  // price and LOCKED — so the MOOLA needed per level never floats with price.
+  // building up gradually — the hold requirement tracks the daily-yield curve
+  // (see requiredMoola), so it climbs as smoothly as MOOLA/day does. The USD
+  // ladder is snapshotted to MOOLA once at the launch price and LOCKED, so the
+  // MOOLA needed per level never floats with price.
   //   fixedMoolaPriceUsd = launch snapshot: $0.01 == 500 MOOLA.
   //   baseHold = 500 MOOLA == $0.01 for the level 1 -> 2 step.
   leveling: {
     baseHold: 500, // MOOLA held for level 1 -> 2 ( == $0.01 at snapshot )
-    holdGrowth: 1.0075, // required holding compounds per level
     fixedMoolaPriceUsd: 0.00002, // locked launch price: 1 MOOLA = $0.00002
   },
 
@@ -253,12 +254,15 @@ export function nftById(id: string): NftDef | undefined {
   return nfts.find((n) => n.id === id);
 }
 
-/** MOOLA you must HOLD to be at a given level (1..MAX_LEVEL). Level 1 = 0. */
+/**
+ * MOOLA you must HOLD to be at a given level (1..MAX_LEVEL). Level 1 = 0.
+ * The requirement tracks the SAME gradual curve as the daily yield (no doubling
+ * per level), anchored so the first paid step (level 2) == baseHold MOOLA.
+ */
 export function requiredMoola(level: number): number {
   if (level <= 1) return 0;
   const n = Math.min(MAX_LEVEL, level);
-  const { baseHold, holdGrowth } = game.leveling;
-  return Math.round(baseHold * (n - 1) * Math.pow(holdGrowth, n - 1));
+  return Math.round((game.leveling.baseHold * baseDailyYield(n)) / baseDailyYield(2));
 }
 
 /** Highest level whose required holding is covered by `held` MOOLA. */
