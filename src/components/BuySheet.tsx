@@ -37,6 +37,7 @@ export function BuySheet({
   const [quoting, setQuoting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [diag, setDiag] = useState<string | null>(null); // visible build/sign diagnostics
   const seq = useRef(0);
 
   // Debounced quote for the estimate (lightweight, always works), plus — when a
@@ -68,13 +69,16 @@ export function BuySheet({
       } finally {
         if (id === seq.current) setQuoting(false);
       }
-      // Background pre-build (best effort) — don't surface its errors.
+      // Background pre-build — surface its error so we can see what's failing.
       if (address) {
+        setDiag(null);
         api<{ message: SwapMsg }>('swap/build', { ton: amt, address })
           .then((b) => {
             if (id === seq.current) setMsg(b.message);
           })
-          .catch(() => {});
+          .catch((e) => {
+            if (id === seq.current) setDiag(`build: ${(e as Error).message}`);
+          });
       }
     }, 450);
     return () => clearTimeout(t);
@@ -85,19 +89,23 @@ export function BuySheet({
     if (!address) return toast('Connect your wallet first', 'bad');
     if (!amt || amt <= 0) return toast('Enter an amount', 'bad');
     setBusy(true);
+    setDiag(null);
     haptic('heavy');
     try {
       // Prefer the pre-built message so no network call precedes sendTransaction
       // (keeps the tap gesture). Fall back to building on-tap if it's not ready.
       let m = msg;
       if (!m) {
+        setDiag('building…');
         const b = await api<{ message: SwapMsg }>('swap/build', { ton: amt, address });
         m = b.message;
       }
+      setDiag('opening wallet…');
       await tonUI.sendTransaction({
         validUntil: Math.floor(Date.now() / 1000) + 300,
         messages: [{ address: m.address, amount: m.amount, payload: m.payload }],
       });
+      setDiag(null);
       notify('success');
       playSfx('reward_big');
       toast('✅ Swap sent! Your MOOLA will arrive shortly.', 'good');
@@ -110,7 +118,12 @@ export function BuySheet({
       onClose();
     } catch (e) {
       const m = (e as Error).message || 'Swap failed';
-      if (!/reject|cancel|declin/i.test(m)) toast(m, 'bad');
+      if (/reject|cancel|declin/i.test(m)) {
+        setDiag(null);
+      } else {
+        setDiag(`sign: ${m}`);
+        toast(m, 'bad');
+      }
     } finally {
       setBusy(false);
     }
@@ -205,6 +218,12 @@ export function BuySheet({
                 <p className="mt-2 text-center text-[11px] text-white/40">
                   Connect your TON wallet to swap.
                 </p>
+              </div>
+            )}
+
+            {diag && (
+              <div className="mt-2 break-words rounded-xl border border-red-400/30 bg-red-500/[0.08] px-3 py-2 text-center text-[11px] text-red-200">
+                {diag}
               </div>
             )}
 
