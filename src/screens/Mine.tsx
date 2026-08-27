@@ -162,7 +162,10 @@ export function MineScreen() {
             <div className="mb-1.5 flex items-center justify-between text-[11px]">
               <span className="chip bg-white/8 text-white/70">Lvl {u.level} ›</span>
               <span className="text-white/45">
-                <span className="neon-text font-bold">{fmt(u.toNextLevel, 2)}</span> to Lvl {u.level + 1}
+                <span className="neon-text font-bold">
+                  {u.toNextLevelUsd >= 0.01 ? `$${u.toNextLevelUsd.toFixed(2)}` : `$${u.toNextLevelUsd.toFixed(4)}`}
+                </span>{' '}
+                to Lvl {u.level + 1}
               </span>
             </div>
             <ProgressBar pct={levelPct} />

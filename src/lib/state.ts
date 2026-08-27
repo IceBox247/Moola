@@ -7,6 +7,7 @@ import {
   levelForHoldings,
   toNextLevel,
   requiredMoola,
+  requiredUsd,
   atfMultiplier,
   nftById,
   nfts,
@@ -184,6 +185,13 @@ export function serialize(u: UserRow, socialDone: string[] = [], at = nowMs()) {
     toNextLevel: round2(toNextLevel(held)),
     levelFloor: requiredMoola(level),
     levelCeil: requiredMoola(level + 1),
+
+    // Levels valued in USD (fixed launch-price snapshot, locked).
+    moolaPriceUsd: game.leveling.fixedMoolaPriceUsd,
+    heldUsd: round4(heldMoola(u) * game.leveling.fixedMoolaPriceUsd),
+    levelUsd: round4(requiredUsd(level)),
+    nextLevelUsd: round4(requiredUsd(level + 1)),
+    toNextLevelUsd: round4(toNextLevel(held) * game.leveling.fixedMoolaPriceUsd),
 
     dailyYield: dailyYield(level, nftBoost, atfMult),
     hashrate: hashrate(level, atfMult),

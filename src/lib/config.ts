@@ -27,10 +27,15 @@ export const game = {
     hashratePerLevel: 0.009,
   },
 
-  // Levels are driven by how much MOOLA you HOLD (like ATF's required-holding).
+  // Levels are priced in USD, starting at $0.01 for the first paid step and
+  // building up. The USD ladder is snapshotted to MOOLA once at the launch
+  // price and LOCKED — so the MOOLA needed per level never floats with price.
+  //   fixedMoolaPriceUsd = launch snapshot: $0.01 == 500 MOOLA.
+  //   baseHold = 500 MOOLA == $0.01 for the level 1 -> 2 step.
   leveling: {
-    baseHold: 50, // MOOLA held for level 1 -> 2
+    baseHold: 500, // MOOLA held for level 1 -> 2 ( == $0.01 at snapshot )
     holdGrowth: 1.0075, // required holding compounds per level
+    fixedMoolaPriceUsd: 0.00002, // locked launch price: 1 MOOLA = $0.00002
   },
 
   // ATF partnership: hold ATF in your connected wallet for a mining multiplier.
@@ -268,6 +273,16 @@ export function toNextLevel(held: number): number {
   const level = levelForHoldings(held);
   if (level >= MAX_LEVEL) return 0;
   return Math.max(0, requiredMoola(level + 1) - held);
+}
+
+/** Convert a MOOLA amount to its locked USD value (fixed launch snapshot). */
+export function moolaToUsd(moola: number): number {
+  return moola * game.leveling.fixedMoolaPriceUsd;
+}
+
+/** Locked USD value required to HOLD to reach a given level. */
+export function requiredUsd(level: number): number {
+  return moolaToUsd(requiredMoola(level));
 }
 
 /**

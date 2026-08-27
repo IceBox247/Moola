@@ -37,6 +37,12 @@ export type PublicUser = {
   levelFloor: number;
   levelCeil: number;
 
+  moolaPriceUsd: number;
+  heldUsd: number;
+  levelUsd: number;
+  nextLevelUsd: number;
+  toNextLevelUsd: number;
+
   dailyYield: number;
   hashrate: number;
   boostPct: number;

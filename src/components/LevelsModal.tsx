@@ -8,6 +8,13 @@ import { haptic } from '@/lib/telegram';
 import { requiredMoola, baseDailyYield, hashrate as hashrateFor, MAX_LEVEL } from '@/lib/config';
 import { BuySheet } from './BuySheet';
 
+/** Compact USD label with sensible precision for tiny to large values. */
+function usd(n: number): string {
+  if (n >= 100) return `$${Math.round(n).toLocaleString()}`;
+  if (n >= 0.01) return `$${n.toFixed(2)}`;
+  return `$${n.toFixed(4)}`;
+}
+
 export function LevelsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { user } = useStore();
   const u = user!;
@@ -20,6 +27,7 @@ export function LevelsModal({ open, onClose }: { open: boolean; onClose: () => v
       list.push({
         n,
         req,
+        reqUsd: req * u.moolaPriceUsd,
         yield: baseDailyYield(n),
         ths: hashrateFor(n, 1),
         unlocked: u.held >= req,
@@ -28,7 +36,7 @@ export function LevelsModal({ open, onClose }: { open: boolean; onClose: () => v
       });
     }
     return list;
-  }, [u.held, u.level]);
+  }, [u.held, u.level, u.moolaPriceUsd]);
 
   // Scroll to the current level when the sheet opens.
   const currentRef = useRef<HTMLDivElement | null>(null);
@@ -67,16 +75,16 @@ export function LevelsModal({ open, onClose }: { open: boolean; onClose: () => v
             <div className="shrink-0 p-5 pb-3 text-center">
               <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-white/20" />
               <h3 className="text-xl font-black">Mining Levels</h3>
-              <p className="text-sm text-white/50">Hold more MOOLA to level up &amp; mine faster</p>
+              <p className="text-sm text-white/50">Hold this much value in MOOLA to level up &amp; mine faster</p>
               <div className="mt-3 grid grid-cols-3 gap-2">
                 <MiniStat label="Level" value={`${u.level}`} />
-                <MiniStat label="Holding" value={fmtCompact(u.held)} />
+                <MiniStat label="Holding" value={usd(u.heldUsd)} sub={`${fmtCompact(u.held)} MOOLA`} />
                 <MiniStat label="Speed" value={`${u.hashrate} TH/s`} gold />
               </div>
               {u.toNextLevel > 0 && (
                 <div className="mt-3 rounded-2xl border border-moo-500/30 bg-moo-500/[0.06] px-4 py-2 text-sm">
-                  <span className="neon-text font-bold">{fmt(u.toNextLevel, 2)} MOOLA</span>
-                  <span className="text-white/55"> to reach Lvl {u.level + 1}</span>
+                  <span className="neon-text font-bold">{usd(u.toNextLevelUsd)}</span>
+                  <span className="text-white/55"> ({fmt(u.toNextLevel, 2)} MOOLA) to reach Lvl {u.level + 1}</span>
                 </div>
               )}
             </div>
@@ -102,7 +110,7 @@ export function LevelsModal({ open, onClose }: { open: boolean; onClose: () => v
                   <div className="flex-1">
                     <div className="text-sm font-bold gold-text">{fmtCompact(r.yield)} MOOLA/day</div>
                     <div className="text-[11px] text-white/45">
-                      {r.ths} TH/s · needs {fmtCompact(r.req)} held
+                      {r.ths} TH/s · hold <span className="text-white/70">{usd(r.reqUsd)}</span> ({fmtCompact(r.req)} MOOLA)
                     </div>
                   </div>
                   {r.current ? (
@@ -126,11 +134,12 @@ export function LevelsModal({ open, onClose }: { open: boolean; onClose: () => v
   );
 }
 
-function MiniStat({ label, value, gold }: { label: string; value: string; gold?: boolean }) {
+function MiniStat({ label, value, sub, gold }: { label: string; value: string; sub?: string; gold?: boolean }) {
   return (
     <div className="rounded-2xl border border-white/8 bg-black/25 px-2 py-2">
       <div className="label">{label}</div>
       <div className={`text-sm font-black ${gold ? 'gold-text' : 'text-white'}`}>{value}</div>
+      {sub && <div className="text-[10px] text-white/35">{sub}</div>}
     </div>
   );
 }
