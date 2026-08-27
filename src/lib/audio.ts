@@ -43,7 +43,7 @@ export type AudioPrefs = {
   sfxVol: number; // 0..1
 };
 
-const DEFAULT_PREFS: AudioPrefs = { sfxOn: true, musicOn: true, musicVol: 0.3, sfxVol: 0.65 };
+const DEFAULT_PREFS: AudioPrefs = { sfxOn: true, musicOn: false, musicVol: 0.3, sfxVol: 0.65 };
 const PREFS_KEY = 'moola_audio_prefs';
 
 function loadPrefs(): AudioPrefs {
