@@ -38,7 +38,23 @@ export function BuySheet({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [diag, setDiag] = useState<string | null>(null); // visible build/sign diagnostics
+  const [bal, setBal] = useState<number | null>(null); // connected wallet native (GRAM) balance
   const seq = useRef(0);
+
+  // Fetch the connected wallet's native GRAM balance when the sheet opens.
+  useEffect(() => {
+    if (!open || !address) {
+      setBal(null);
+      return;
+    }
+    let alive = true;
+    api<{ ton: number }>('wallet/balance', { address })
+      .then((r) => alive && setBal(r.ton))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [open, address]);
 
   // Debounced quote for the estimate (lightweight, always works), plus — when a
   // wallet is connected — pre-build the signable message in the background so
@@ -164,7 +180,17 @@ export function BuySheet({
             )}
 
             {/* amount */}
-            <label className="label mt-4 block">You pay (TON)</label>
+            <div className="mt-4 flex items-center justify-between">
+              <label className="label">You pay (GRAM)</label>
+              {bal !== null && (
+                <button
+                  onClick={() => setTon(String(Math.max(0, Math.floor((bal - 0.3) * 100) / 100)))}
+                  className="text-[11px] font-bold text-sky-300"
+                >
+                  Balance: {fmt(bal, 2)} GRAM · MAX
+                </button>
+              )}
+            </div>
             <input
               inputMode="decimal"
               value={ton}

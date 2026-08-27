@@ -38,6 +38,19 @@ function tokenAmount(b: JettonBalance | null): number {
   return Number(b.balance) / Math.pow(10, dec);
 }
 
+/** Native coin (TON / GRAM) balance of an account, in whole coins. */
+export async function fetchTonBalance(address: string): Promise<number> {
+  try {
+    const url = `${BASE}/accounts/${encodeURIComponent(address)}`;
+    const res = await fetch(url, { headers: headers(), cache: 'no-store' });
+    if (!res.ok) return 0;
+    const data = (await res.json()) as { balance?: string | number };
+    return Number(data.balance ?? 0) / 1e9;
+  } catch {
+    return 0;
+  }
+}
+
 export async function scanWallet(address: string): Promise<{ atfUsd: number; moolaOnchain: number }> {
   let atfUsd = 0;
   let moolaOnchain = 0;
