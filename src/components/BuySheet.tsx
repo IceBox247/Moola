@@ -72,7 +72,7 @@ export function BuySheet({
       // Background pre-build — surface its error so we can see what's failing.
       if (address) {
         setDiag(null);
-        api<{ message: SwapMsg }>('swap/build', { ton: amt, address })
+        api<{ message: SwapMsg }>('swap/tx', { ton: amt, address })
           .then((b) => {
             if (id === seq.current) setMsg(b.message);
           })
@@ -97,7 +97,7 @@ export function BuySheet({
       let m = msg;
       if (!m) {
         setDiag('building…');
-        const b = await api<{ message: SwapMsg }>('swap/build', { ton: amt, address });
+        const b = await api<{ message: SwapMsg }>('swap/tx', { ton: amt, address });
         m = b.message;
       }
       setDiag('opening wallet…');
