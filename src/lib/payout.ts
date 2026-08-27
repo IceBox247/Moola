@@ -37,11 +37,25 @@ function toJettonUnits(amountMoola: number): bigint {
 async function openWallet(client: TonClient) {
   const words = (process.env.WITHDRAW_WALLET_MNEMONIC || '').trim().split(/\s+/);
   const key = await mnemonicToPrivateKey(words);
+  const v4 = WalletContractV4.create({ workchain: 0, publicKey: key.publicKey });
+  const v5 = WalletContractV5R1.create({ workchain: 0, publicKey: key.publicKey });
+
+  // Prefer the wallet version whose derived address matches the public address
+  // you funded — so you never have to know the version. Fall back to an
+  // explicit WITHDRAW_WALLET_VERSION, else default to v4 (Tonkeeper default).
+  const expected = (process.env.WITHDRAW_WALLET_ADDRESS || '').trim();
+  if (expected) {
+    try {
+      const want = Address.parse(expected).toString();
+      if (v5.address.toString() === want) return { wallet: v5, secretKey: key.secretKey };
+      if (v4.address.toString() === want) return { wallet: v4, secretKey: key.secretKey };
+      throw new Error('WITHDRAW_WALLET_ADDRESS does not match the mnemonic (v4/v5)');
+    } catch (e) {
+      throw new Error((e as Error).message || 'bad WITHDRAW_WALLET_ADDRESS');
+    }
+  }
   const version = (process.env.WITHDRAW_WALLET_VERSION || 'v4').toLowerCase();
-  const wallet =
-    version === 'v5' || version === 'v5r1'
-      ? WalletContractV5R1.create({ workchain: 0, publicKey: key.publicKey })
-      : WalletContractV4.create({ workchain: 0, publicKey: key.publicKey });
+  const wallet = version === 'v5' || version === 'v5r1' ? v5 : v4;
   return { wallet, secretKey: key.secretKey };
 }
 
