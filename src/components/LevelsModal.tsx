@@ -1,13 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useStore } from '@/lib/store';
 import { fmt, fmtCompact } from '@/lib/format';
 import { haptic } from '@/lib/telegram';
-import { openLink } from '@/lib/telegram';
-import { stonfiBuyMoola } from '@/lib/links';
 import { requiredMoola, baseDailyYield, hashrate as hashrateFor, MAX_LEVEL } from '@/lib/config';
+import { BuySheet } from './BuySheet';
 
 export function LevelsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { user } = useStore();
@@ -40,9 +39,10 @@ export function LevelsModal({ open, onClose }: { open: boolean; onClose: () => v
     }
   }, [open]);
 
+  const [buyFor, setBuyFor] = useState<number | null>(null);
   function buy(missing: number) {
     haptic('heavy');
-    openLink(stonfiBuyMoola(missing));
+    setBuyFor(missing);
   }
 
   return (
@@ -118,6 +118,8 @@ export function LevelsModal({ open, onClose }: { open: boolean; onClose: () => v
               ))}
             </div>
           </motion.div>
+
+          <BuySheet open={buyFor !== null} onClose={() => setBuyFor(null)} targetMoola={buyFor ?? undefined} />
         </motion.div>
       )}
     </AnimatePresence>
