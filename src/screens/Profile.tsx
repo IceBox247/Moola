@@ -12,6 +12,23 @@ import { VerifyModal } from '@/components/VerifyModal';
 import { fmtCompact } from '@/lib/format';
 import type { HistoryItem, PublicUser } from '@/lib/types';
 
+type WithdrawalItem = {
+  id: number;
+  amount: number;
+  address: string;
+  status: string;
+  error: string | null;
+  txHash: string | null;
+  createdAt: number;
+};
+
+const WD_STATUS: Record<string, { label: string; cls: string }> = {
+  pending: { label: '⏳ Pending', cls: 'bg-white/10 text-white/60' },
+  processing: { label: '⚙️ Sending', cls: 'bg-sky-500/15 text-sky-300' },
+  paid: { label: '✅ Paid', cls: 'bg-moo-500/15 text-moo-300' },
+  failed: { label: '⚠️ Failed', cls: 'bg-red-500/15 text-red-300' },
+};
+
 const KIND_ICON: Record<string, string> = {
   mining: '⛏️',
   checkin: '📅',
@@ -32,9 +49,11 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
   const [busy, setBusy] = useState(false);
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [history, setHistory] = useState<HistoryItem[] | null>(null);
+  const [withdrawals, setWithdrawals] = useState<WithdrawalItem[] | null>(null);
 
   useEffect(() => {
     api<{ items: HistoryItem[] }>('history').then((d) => setHistory(d.items)).catch(() => setHistory([]));
+    api<{ items: WithdrawalItem[] }>('withdrawals').then((d) => setWithdrawals(d.items)).catch(() => setWithdrawals([]));
   }, [u.balance]);
 
   const MIN = 60;
@@ -145,6 +164,32 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
           </button>
         )}
       </div>
+
+      {/* Withdrawal status */}
+      {withdrawals && withdrawals.length > 0 && (
+        <div className="card p-4">
+          <div className="mb-3 font-bold">💸 Withdrawal Status</div>
+          <div className="space-y-2">
+            {withdrawals.map((w) => {
+              const s = WD_STATUS[w.status] ?? WD_STATUS.pending;
+              return (
+                <div key={w.id} className="rounded-2xl border border-white/8 bg-black/25 p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-black">{fmt(w.amount, 2)} MOOLA</div>
+                    <span className={`chip ${s.cls}`}>{s.label}</span>
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-white/40">
+                    to {w.address.slice(0, 6)}…{w.address.slice(-4)} · {timeAgo(w.createdAt)}
+                  </div>
+                  {w.status === 'failed' && w.error && (
+                    <div className="mt-1 break-words text-[11px] text-red-300/80">{w.error}</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Audio settings */}
       <AudioSettings mining={u.mining.active} />

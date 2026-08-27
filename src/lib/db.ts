@@ -262,6 +262,26 @@ export async function withdrawnTotal(userId: string): Promise<number> {
   return Math.round(Number(rows[0]?.s ?? 0) * 100) / 100;
 }
 
+export async function listWithdrawals(userId: string, limit = 10) {
+  await ensureSchema();
+  const { rows } = await sql`
+    SELECT id, amount, address, status, last_error, tx_hash, created_at
+    FROM withdrawals
+    WHERE user_id = ${userId}
+    ORDER BY created_at DESC
+    LIMIT ${limit};
+  `;
+  return rows.map((r) => ({
+    id: Number(r.id),
+    amount: Number(r.amount),
+    address: String(r.address),
+    status: String(r.status),
+    error: (r.last_error as string) ?? null,
+    txHash: (r.tx_hash as string) ?? null,
+    createdAt: Number(r.created_at),
+  }));
+}
+
 export async function getSocialDone(userId: string): Promise<string[]> {
   await ensureSchema();
   const { rows } = await sql`SELECT task_id FROM social_tasks WHERE user_id = ${userId};`;
