@@ -13,6 +13,11 @@ import { env } from './config';
 const TONCENTER_ENDPOINT = 'https://toncenter.com/api/v2/jsonRPC';
 const DEFAULT_SLIPPAGE = '0.02'; // 2%
 
+// STON.fi's simulate endpoint wants the proxy-TON (pTON) master address for the
+// native side, not the literal string "ton". This is pTON v2.1, which STON.fi's
+// current v2 routers (the MOOLA/GRAM pool is one) use.
+const PTON_MASTER = 'EQBnGWMCf3-FZZq1W4IWcWiGAc3PHuZ0_H-7sad2oY00o83S';
+
 function moolaJetton(): string {
   const addr = env.MOOLA_JETTON;
   if (!addr) throw new Error('MOOLA_JETTON_ADDRESS is not configured');
@@ -37,7 +42,7 @@ export type SwapQuote = {
 /** Simulate buying MOOLA with `offerNanoTon` nanotons. Cheap, no RPC. */
 export async function quoteBuyMoola(offerNanoTon: string, slippage = DEFAULT_SLIPPAGE): Promise<SwapQuote> {
   const sim = await apiClient().simulateSwap({
-    offerAddress: 'ton',
+    offerAddress: PTON_MASTER,
     askAddress: moolaJetton(),
     offerUnits: offerNanoTon,
     slippageTolerance: slippage,
@@ -62,7 +67,7 @@ export async function buildBuyMoolaTx(
 ): Promise<{ message: SwapMessage; quote: SwapQuote }> {
   const client = apiClient();
   const sim = await client.simulateSwap({
-    offerAddress: 'ton',
+    offerAddress: PTON_MASTER,
     askAddress: moolaJetton(),
     offerUnits: offerNanoTon,
     slippageTolerance: slippage,
