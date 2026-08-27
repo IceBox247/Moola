@@ -15,6 +15,9 @@ export const env = {
 
 export const MAX_LEVEL = 800;
 
+/** Fixed MOOLA total supply (50 billion) — used for market-cap display. */
+export const MOOLA_TOTAL_SUPPLY = 50_000_000_000;
+
 export const game = {
   currency: 'MOOLA',
 

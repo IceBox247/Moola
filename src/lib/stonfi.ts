@@ -1,6 +1,7 @@
 import { StonApiClient } from '@ston-fi/api';
 import { dexFactory } from '@ston-fi/sdk';
-import { env } from './config';
+import { env, MOOLA_TOTAL_SUPPLY } from './config';
+import { fetchTonUsd } from './ton';
 
 /**
  * Server-side STON.fi swap builder for buying MOOLA with the native coin (TON /
@@ -75,6 +76,33 @@ export async function quoteBuyMoola(offerNanoTon: string, slippage = DEFAULT_SLI
     askMoola: Number(sim.askUnits) / 1e9,
     minMoola: Number(sim.minAskUnits) / 1e9,
   };
+}
+
+export type MarketStats = { moolaPriceUsd: number; marketCapUsd: number; tonUsd: number };
+
+// Cache market stats briefly so the dashboard can poll without hammering APIs.
+let statsCache: { at: number; data: MarketStats } | null = null;
+const STATS_TTL_MS = 60_000;
+
+/**
+ * Live MOOLA market stats: derive the MOOLA/TON rate from the pool, price TON
+ * in USD, and multiply by the fixed total supply for market cap.
+ */
+export async function moolaMarketStats(): Promise<MarketStats> {
+  if (statsCache && Date.now() - statsCache.at < STATS_TTL_MS) return statsCache.data;
+  const [sim, tonUsd] = await Promise.all([
+    simulate(String(1e9), '0.01'), // 1 TON -> MOOLA
+    fetchTonUsd(),
+  ]);
+  const moolaPerTon = Number(sim.askUnits) / 1e9;
+  const moolaPriceUsd = moolaPerTon > 0 ? (1 / moolaPerTon) * tonUsd : 0;
+  const data: MarketStats = {
+    moolaPriceUsd,
+    marketCapUsd: moolaPriceUsd * MOOLA_TOTAL_SUPPLY,
+    tonUsd,
+  };
+  statsCache = { at: Date.now(), data };
+  return data;
 }
 
 export type SwapMessage = { address: string; amount: string; payload: string };

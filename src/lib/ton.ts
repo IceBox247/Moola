@@ -38,6 +38,18 @@ function tokenAmount(b: JettonBalance | null): number {
   return Number(b.balance) / Math.pow(10, dec);
 }
 
+/** Native coin (TON / GRAM) price in USD, or 0 if unavailable. */
+export async function fetchTonUsd(): Promise<number> {
+  try {
+    const res = await fetch(`${BASE}/rates?tokens=ton&currencies=usd`, { headers: headers(), cache: 'no-store' });
+    if (!res.ok) return 0;
+    const data = (await res.json()) as { rates?: { TON?: { prices?: { USD?: number } } } };
+    return data.rates?.TON?.prices?.USD ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 /** Native coin (TON / GRAM) balance of an account, in whole coins. */
 export async function fetchTonBalance(address: string): Promise<number> {
   try {

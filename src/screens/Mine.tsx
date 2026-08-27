@@ -11,7 +11,15 @@ import { LevelsModal } from '@/components/LevelsModal';
 import { AtfBoostModal } from '@/components/AtfBoostModal';
 import { haptic, notify } from '@/lib/telegram';
 import { unlockAudio, playSfx } from '@/lib/audio';
+import { api } from '@/lib/client';
 import type { PublicUser } from '@/lib/types';
+
+function usdCompact(n: number): string {
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
+  if (n >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
+  return `$${n.toFixed(0)}`;
+}
 
 function useNow(active: boolean) {
   const [now, setNow] = useState(() => Date.now());
@@ -29,8 +37,24 @@ export function MineScreen() {
   const [levelsOpen, setLevelsOpen] = useState(false);
   const [atfOpen, setAtfOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [stats, setStats] = useState<{ marketCapUsd: number; moolaPriceUsd: number } | null>(null);
   const mining = user!.mining;
   const now = useNow(mining.active);
+
+  // Live MOOLA market cap (refreshed every ~60s; server-cached).
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      api<{ marketCapUsd: number; moolaPriceUsd: number }>('stats')
+        .then((s) => alive && setStats(s))
+        .catch(() => {});
+    load();
+    const t = setInterval(load, 60_000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, []);
 
   // Anchor the live counter to the server's checkpointed pending value, then
   // grow it locally at the current rate (rate changes when a re-scan lands).
@@ -157,6 +181,20 @@ export function MineScreen() {
               </button>
             </div>
           </div>
+
+          {stats && stats.marketCapUsd > 0 && (
+            <div className="relative mt-3 flex items-center justify-center gap-4 rounded-2xl border border-white/8 bg-black/25 py-2 text-center">
+              <div>
+                <div className="label">Market Cap</div>
+                <div className="text-sm font-black gold-text">{usdCompact(stats.marketCapUsd)}</div>
+              </div>
+              <div className="h-7 w-px bg-white/10" />
+              <div>
+                <div className="label">Price</div>
+                <div className="text-sm font-black text-white">${stats.moolaPriceUsd.toFixed(6)}</div>
+              </div>
+            </div>
+          )}
 
           <div className="relative mt-4 grid grid-cols-3 gap-2">
             <Stat label="Per day" value={fmt(u.dailyYield, 2)} />
