@@ -88,7 +88,7 @@ export async function sendMoola(toAddress: string, amountMoola: number): Promise
       .storeAddress(dest) // destination (the user)
       .storeAddress(wallet.address) // response destination — excess TON returns to hot wallet
       .storeBit(0) // no custom payload
-      .storeCoins(toNano('0.05')) // forward TON — covers recipient jetton-wallet deploy + notify
+      .storeCoins(toNano('0.01')) // tiny forward — just enough for the recipient's transfer notification
       .storeBit(0) // empty forward payload
       .endCell();
 
@@ -99,7 +99,10 @@ export async function sendMoola(toAddress: string, amountMoola: number): Promise
       messages: [
         internal({
           to: jettonWallet,
-          value: toNano('0.12'), // gas + forward (0.05) + recipient wallet deploy headroom
+          // Ceiling attached to the transfer; unused TON returns to the hot
+          // wallet (response_destination). Real cost ≈ gas (~0.02) + the 0.01
+          // forward, so ~0.03 TON/payout in practice.
+          value: toNano('0.05'),
           body,
           bounce: true,
         }),
