@@ -45,14 +45,19 @@ export async function runPayouts(limit = 5): Promise<PayoutRun> {
         WHERE id = ${row.id};
       `;
       paid++;
+    } else if (!res.refundable) {
+      // Payout may have broadcast — never auto-retry or refund (double-pay risk).
+      // Park it for manual review; balance stays debited until reconciled.
+      await sql`UPDATE withdrawals SET status = 'review', last_error = ${res.error} WHERE id = ${row.id};`;
+      failed++;
     } else if (row.attempts >= MAX_ATTEMPTS) {
-      // Give up and refund the user so no funds are lost.
+      // Definitely did not send, out of retries — refund so no funds are lost.
       await sql`UPDATE users SET balance = balance + ${row.amount} WHERE id = ${row.user_id};`;
       await addTx(row.user_id, 'refund', Number(row.amount), 'Withdrawal refunded (payout failed)');
       await sql`UPDATE withdrawals SET status = 'failed', last_error = ${res.error} WHERE id = ${row.id};`;
       failed++;
     } else {
-      // Transient failure — back to the queue for the next run.
+      // Definitely did not send — safe to requeue for the next run.
       await sql`UPDATE withdrawals SET status = 'pending', last_error = ${res.error} WHERE id = ${row.id};`;
       failed++;
     }

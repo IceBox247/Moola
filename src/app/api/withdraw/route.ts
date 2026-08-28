@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
   // Attempt the on-chain payout right away (best effort). If the wallet isn't
   // configured or the send fails, the row stays queued and the cron sweep +
   // retry/refund logic handles it — the response never fails on payout error.
-  await runPayouts(3).catch(() => {});
+  await runPayouts(1).catch(() => {});
 
   const u = await getUser(ctx.user.id);
   return userResponse(ctx.user.id, { requested: amount, balance: u?.balance ?? 0 });

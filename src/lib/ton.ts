@@ -38,6 +38,13 @@ function tokenAmount(b: JettonBalance | null): number {
   return Number(b.balance) / Math.pow(10, dec);
 }
 
+/** MOOLA jetton balance held by `address` (whole tokens). 0 on any error. */
+export async function moolaBalanceOf(address: string): Promise<number> {
+  if (!env.MOOLA_JETTON) return 0;
+  const b = await fetchJetton(address, env.MOOLA_JETTON);
+  return tokenAmount(b);
+}
+
 /** Native coin (TON / GRAM) price in USD, or 0 if unavailable. */
 export async function fetchTonUsd(): Promise<number> {
   try {

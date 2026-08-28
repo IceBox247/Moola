@@ -27,6 +27,7 @@ const WD_STATUS: Record<string, { label: string; cls: string }> = {
   processing: { label: '⚙️ Sending', cls: 'bg-sky-500/15 text-sky-300' },
   paid: { label: '✅ Paid', cls: 'bg-moo-500/15 text-moo-300' },
   failed: { label: '⚠️ Failed', cls: 'bg-red-500/15 text-red-300' },
+  review: { label: '🔎 Under review', cls: 'bg-gold-500/15 text-gold-300' },
 };
 
 const KIND_ICON: Record<string, string> = {

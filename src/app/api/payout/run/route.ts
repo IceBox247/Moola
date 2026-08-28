@@ -18,7 +18,7 @@ async function handle(req: NextRequest) {
     const auth = req.headers.get('authorization');
     if (auth !== `Bearer ${secret}`) return json({ error: 'unauthorized' }, 401);
   }
-  const result = await runPayouts(20);
+  const result = await runPayouts(3);
   return json(result);
 }
 

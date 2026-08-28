@@ -3,6 +3,9 @@ import { Address, beginCell, toNano } from '@ton/core';
 import { mnemonicToPrivateKey } from '@ton/crypto';
 import { getHttpEndpoint } from '@orbs-network/ton-access';
 import { env } from './config';
+import { moolaBalanceOf } from './ton';
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Automated MOOLA jetton payout from the project hot wallet.
@@ -59,23 +62,41 @@ async function openWallet(client: TonClient) {
   return { wallet, secretKey: key.secretKey };
 }
 
-export type PayoutResult = { ok: true; seqno: number } | { ok: false; error: string };
+// `refundable: true` means the payout definitely did NOT leave the wallet, so
+// it is safe to retry or refund. `false` means it may have broadcast — never
+// auto-retry (double-pay risk); route to manual review instead.
+export type PayoutResult =
+  | { ok: true; seqno: number }
+  | { ok: false; error: string; refundable: boolean };
 
 /** Send `amountMoola` MOOLA to `toAddress`. Broadcasts one external message. */
 export async function sendMoola(toAddress: string, amountMoola: number): Promise<PayoutResult> {
-  if (!payoutConfigured()) return { ok: false, error: 'payout wallet not configured' };
+  if (!payoutConfigured()) return { ok: false, error: 'payout wallet not configured', refundable: true };
   let dest: Address;
   try {
     dest = Address.parse(toAddress);
   } catch {
-    return { ok: false, error: 'invalid destination address' };
+    return { ok: false, error: 'invalid destination address', refundable: true };
   }
-  if (!(amountMoola > 0)) return { ok: false, error: 'invalid amount' };
+  if (!(amountMoola > 0)) return { ok: false, error: 'invalid amount', refundable: true };
 
+  let broadcast = false;
   try {
     const client = new TonClient({ endpoint: await rpc() });
     const { wallet, secretKey } = await openWallet(client);
     const contract = client.open(wallet);
+    const hot = wallet.address.toString();
+
+    // Pre-flight: the hot wallet must actually hold enough MOOLA, or the jetton
+    // transfer bounces instantly and the user would be debited for nothing.
+    const before = await moolaBalanceOf(hot);
+    if (before < amountMoola) {
+      return {
+        ok: false,
+        error: `hot wallet MOOLA too low: has ${before.toFixed(2)}, needs ${amountMoola}. Fund the payout wallet with MOOLA.`,
+        refundable: true,
+      };
+    }
 
     // Hot wallet's own MOOLA jetton wallet (source of the transfer).
     const master = client.open(JettonMaster.create(Address.parse(env.MOOLA_JETTON)));
@@ -88,7 +109,7 @@ export async function sendMoola(toAddress: string, amountMoola: number): Promise
       .storeAddress(dest) // destination (the user)
       .storeAddress(wallet.address) // response destination — excess TON returns to hot wallet
       .storeBit(0) // no custom payload
-      .storeCoins(toNano('0.01')) // tiny forward — just enough for the recipient's transfer notification
+      .storeCoins(toNano('0.02')) // forward TON — recipient's transfer notification
       .storeBit(0) // empty forward payload
       .endCell();
 
@@ -99,10 +120,10 @@ export async function sendMoola(toAddress: string, amountMoola: number): Promise
       messages: [
         internal({
           to: jettonWallet,
-          // Ceiling attached to the transfer; unused TON returns to the hot
-          // wallet (response_destination). Real cost ≈ gas (~0.02) + the 0.01
-          // forward, so ~0.03 TON/payout in practice.
-          value: toNano('0.05'),
+          // Ceiling; unused TON returns to the hot wallet (response_destination).
+          // 0.1 covers gas + a first-time recipient jetton-wallet deploy, so it
+          // won't bounce; real cost stays ~0.03 TON/payout.
+          value: toNano('0.1'),
           body,
           bounce: true,
         }),
@@ -110,12 +131,22 @@ export async function sendMoola(toAddress: string, amountMoola: number): Promise
     };
     // V4 and V5R1 both accept this shape for an externally-signed transfer; the
     // union of their arg types needs a cast to satisfy TS.
+    broadcast = true;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (contract as any).sendTransfer(transfer);
-    return { ok: true, seqno };
+
+    // Confirm the MOOLA actually LEFT the hot wallet (balance dropped) before
+    // reporting success — so a bounced transfer is never marked paid.
+    for (let i = 0; i < 14; i++) {
+      await sleep(2500);
+      const now = await moolaBalanceOf(hot);
+      if (now <= before - amountMoola + 0.5) return { ok: true, seqno };
+    }
+    // Broadcast but unconfirmed — could have bounced OR be slow. Never auto-retry.
+    return { ok: false, error: 'transfer unconfirmed — needs manual review', refundable: false };
   } catch (e) {
     // Never leak the mnemonic/keys in error text.
-    return { ok: false, error: (e as Error).message || 'payout failed' };
+    return { ok: false, error: (e as Error).message || 'payout failed', refundable: !broadcast };
   }
 }
 
