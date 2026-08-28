@@ -2,10 +2,9 @@
 export const links = {
   partner: process.env.NEXT_PUBLIC_PARTNER_URL || 'https://t.me/',
   channel: process.env.NEXT_PUBLIC_CHANNEL_URL || 'https://t.me/',
-  x: process.env.NEXT_PUBLIC_X_URL || 'https://x.com/Moolaminer',
-  xPost:
-    process.env.NEXT_PUBLIC_X_POST_URL ||
-    'https://x.com/Moolaminer/status/2093144542128095398',
+  // Hardcoded so no stale env override can point these at a dead handle.
+  x: 'https://x.com/Moolaminer',
+  xPost: 'https://x.com/Moolaminer/status/2093144542128095398',
   youtube: process.env.NEXT_PUBLIC_YOUTUBE_URL || 'https://youtube.com/',
 };
 
