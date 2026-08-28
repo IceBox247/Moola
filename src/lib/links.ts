@@ -2,7 +2,10 @@
 export const links = {
   partner: process.env.NEXT_PUBLIC_PARTNER_URL || 'https://t.me/',
   channel: process.env.NEXT_PUBLIC_CHANNEL_URL || 'https://t.me/',
-  x: process.env.NEXT_PUBLIC_X_URL || 'https://x.com/',
+  x: process.env.NEXT_PUBLIC_X_URL || 'https://x.com/Moolaminer',
+  xPost:
+    process.env.NEXT_PUBLIC_X_POST_URL ||
+    'https://x.com/Moolaminer/status/2093144542128095398',
   youtube: process.env.NEXT_PUBLIC_YOUTUBE_URL || 'https://youtube.com/',
 };
 
@@ -37,6 +40,8 @@ export function socialLink(kind: string): string {
       return links.channel;
     case 'x':
       return links.x;
+    case 'x_post':
+      return links.xPost;
     case 'youtube':
       return links.youtube;
     default:

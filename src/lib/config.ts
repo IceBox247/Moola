@@ -100,7 +100,7 @@ export const game = {
     { id: 'join_channel', title: 'Join Official Channel', reward: 0, required: true, kind: 'channel' },
     { id: 'follow_x', title: 'Follow X (Twitter)', reward: 5, kind: 'x' },
     { id: 'subscribe_youtube', title: 'Subscribe on YouTube', reward: 10, kind: 'youtube' },
-    { id: 'retweet', title: 'X (Twitter) Retweet', reward: 3, kind: 'x' },
+    { id: 'retweet', title: 'X (Twitter) Retweet', reward: 3, kind: 'x_post' },
   ],
 
   referral: {
