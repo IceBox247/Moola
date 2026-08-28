@@ -89,17 +89,23 @@ export function AtfBoostStep({ onContinue }: { onContinue: () => void }) {
           </div>
         ) : (
           <div className="mt-5 w-full space-y-2">
-            {game.atfBoost.tiers.map((t, i) => (
-              <div key={i} className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/[0.03] p-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black/30 font-black gold-text">
-                  {t.mult}×
+            {[2, 8, 16, 32, 64].map((mult) => {
+              const t = game.atfBoost.tiers.find((x) => x.mult === mult)!;
+              return (
+                <div key={mult} className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black/30 font-black gold-text">
+                    {t.mult}×
+                  </div>
+                  <div className="flex-1 text-left text-sm">
+                    Hold {usd(t.minUsd)}
+                    {isFinite(t.maxUsd) ? ` – ${usd(t.maxUsd)}` : '+'} of ATF
+                  </div>
                 </div>
-                <div className="flex-1 text-left text-sm">
-                  Hold {usd(t.minUsd)}
-                  {isFinite(t.maxUsd) ? ` – ${usd(t.maxUsd)}` : '+'} of ATF
-                </div>
-              </div>
-            ))}
+              );
+            })}
+            <p className="pt-1 text-center text-[11px] text-white/40">
+              More ATF, more boost — steps of 2× all the way to 64×.
+            </p>
           </div>
         )}
 
