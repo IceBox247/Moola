@@ -144,6 +144,16 @@ async function initSchema(): Promise<void> {
   await sql`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS last_error TEXT;`;
   await sql`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS processed_at BIGINT;`;
   await sql`CREATE INDEX IF NOT EXISTS idx_wd_status ON withdrawals(status, created_at);`;
+
+  // One-time migrations, keyed so each runs exactly once across all instances.
+  await sql`CREATE TABLE IF NOT EXISTS migrations (key TEXT PRIMARY KEY, done_at BIGINT NOT NULL);`;
+  // Reopen the X tasks for everyone — the links were broken, so prior "Done"
+  // marks don't mean the user actually followed/retweeted.
+  const { rows: m } = await sql`SELECT 1 FROM migrations WHERE key = 'reopen_x_tasks_v1';`;
+  if (!m.length) {
+    await sql`DELETE FROM social_tasks WHERE task_id IN ('follow_x', 'retweet');`;
+    await sql`INSERT INTO migrations (key, done_at) VALUES ('reopen_x_tasks_v1', ${nowMs()}) ON CONFLICT DO NOTHING;`;
+  }
 }
 
 export function nowMs(): number {
