@@ -117,7 +117,10 @@ export async function POST(req: NextRequest) {
       reply_markup: {
         inline_keyboard: [
           [{ text: '🚀 Start Mining', web_app: { url } }],
-          [{ text: '📣 Join Channel', url: process.env.NEXT_PUBLIC_CHANNEL_URL || 'https://t.me/' }],
+          [
+            { text: '🤝 Join Partner', url: process.env.NEXT_PUBLIC_PARTNER_URL || 'https://t.me/' },
+            { text: '📣 Join Channel', url: process.env.NEXT_PUBLIC_CHANNEL_URL || 'https://t.me/' },
+          ],
         ],
       },
     });
