@@ -5,6 +5,7 @@ export const links = {
   // Hardcoded so no stale env override can point these at a dead handle.
   x: 'https://x.com/Moolaminer',
   xPost: 'https://x.com/Moolaminer/status/2093144542128095398',
+  reactPost: 'https://t.me/moolaTg/6',
   youtube: process.env.NEXT_PUBLIC_YOUTUBE_URL || 'https://youtube.com/',
 };
 
@@ -41,6 +42,8 @@ export function socialLink(kind: string): string {
       return links.x;
     case 'x_post':
       return links.xPost;
+    case 'react_post':
+      return links.reactPost;
     case 'youtube':
       return links.youtube;
     default:

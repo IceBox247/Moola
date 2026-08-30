@@ -101,6 +101,7 @@ export const game = {
     { id: 'follow_x', title: 'Follow X (Twitter)', reward: 5, kind: 'x' },
     { id: 'subscribe_youtube', title: 'Subscribe on YouTube', reward: 10, kind: 'youtube' },
     { id: 'retweet', title: 'X (Twitter) Retweet', reward: 3, kind: 'x_post' },
+    { id: 'react_post', title: 'React to this Post', reward: 3, kind: 'react_post' },
   ],
 
   referral: {

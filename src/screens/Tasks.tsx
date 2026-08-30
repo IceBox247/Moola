@@ -15,7 +15,8 @@ import type { PublicUser } from '@/lib/types';
 const SOCIAL = [
   { id: 'follow_x', title: 'Follow X (Twitter)', reward: 5, icon: '🐦', kind: 'x' },
   { id: 'subscribe_youtube', title: 'Subscribe on YouTube', reward: 10, icon: '▶️', kind: 'youtube' },
-  { id: 'retweet', title: 'X (Twitter) Retweet', reward: 3, icon: '🔁', kind: 'x' },
+  { id: 'retweet', title: 'X (Twitter) Retweet', reward: 3, icon: '🔁', kind: 'x_post' },
+  { id: 'react_post', title: 'React to this Post', reward: 3, icon: '❤️', kind: 'react_post' },
 ];
 
 export function TasksScreen() {
