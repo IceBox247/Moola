@@ -12,7 +12,11 @@ import { AtfBoostModal } from '@/components/AtfBoostModal';
 import { haptic, notify } from '@/lib/telegram';
 import { unlockAudio, playSfx } from '@/lib/audio';
 import { api } from '@/lib/client';
+import { MOOLA_TOTAL_SUPPLY } from '@/lib/config';
 import type { PublicUser } from '@/lib/types';
+
+// Persist last-good market stats across remounts so the panel never blanks.
+let statsCache: { marketCapUsd: number; moolaPriceUsd: number } | null = null;
 
 function usdCompact(n: number): string {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
@@ -37,16 +41,21 @@ export function MineScreen() {
   const [levelsOpen, setLevelsOpen] = useState(false);
   const [atfOpen, setAtfOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [stats, setStats] = useState<{ marketCapUsd: number; moolaPriceUsd: number } | null>(null);
+  const [stats, setStats] = useState<{ marketCapUsd: number; moolaPriceUsd: number } | null>(statsCache);
   const mining = user!.mining;
   const now = useNow(mining.active);
 
-  // Live MOOLA market cap (refreshed every ~60s; server-cached).
+  // Live MOOLA market cap (refreshed every ~60s; server-cached). Keep the last
+  // good value on a transient failure so the panel never disappears.
   useEffect(() => {
     let alive = true;
     const load = () =>
       api<{ marketCapUsd: number; moolaPriceUsd: number }>('stats')
-        .then((s) => alive && setStats(s))
+        .then((s) => {
+          if (!alive || !(s.marketCapUsd > 0)) return;
+          statsCache = s;
+          setStats(s);
+        })
         .catch(() => {});
     load();
     const t = setInterval(load, 60_000);
@@ -55,6 +64,11 @@ export function MineScreen() {
       clearInterval(t);
     };
   }, []);
+
+  // Always show a market cap: live when available, else the fixed launch
+  // snapshot (price × 50B) so the panel is never blank.
+  const mcPrice = stats?.moolaPriceUsd ?? user!.moolaPriceUsd;
+  const marketCap = stats?.marketCapUsd ?? user!.moolaPriceUsd * MOOLA_TOTAL_SUPPLY;
 
   // Anchor the live counter to the server's checkpointed pending value, then
   // grow it locally at the current rate (rate changes when a re-scan lands).
@@ -182,16 +196,16 @@ export function MineScreen() {
             </div>
           </div>
 
-          {stats && stats.marketCapUsd > 0 && (
+          {marketCap > 0 && (
             <div className="relative mt-3 flex items-center justify-center gap-4 rounded-2xl border border-white/8 bg-black/25 py-2 text-center">
               <div>
                 <div className="label">Market Cap</div>
-                <div className="text-sm font-black gold-text">{usdCompact(stats.marketCapUsd)}</div>
+                <div className="text-sm font-black gold-text">{usdCompact(marketCap)}</div>
               </div>
               <div className="h-7 w-px bg-white/10" />
               <div>
                 <div className="label">Price</div>
-                <div className="text-sm font-black text-white">${stats.moolaPriceUsd.toFixed(6)}</div>
+                <div className="text-sm font-black text-white">${mcPrice.toFixed(6)}</div>
               </div>
             </div>
           )}

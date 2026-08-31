@@ -22,7 +22,7 @@ export const game = {
   currency: 'MOOLA',
 
   mining: {
-    sessionHours: 8,
+    sessionHours: 24,
     baseDailyYield: 10, // MOOLA/day at level 1
     growthPerLevel: 1.0065, // daily yield compounds per level up to MAX_LEVEL
     yieldSteepness: 5, // multiplies the per-level increase (5× the base step)
