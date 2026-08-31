@@ -30,6 +30,14 @@ const WD_STATUS: Record<string, { label: string; cls: string }> = {
   review: { label: '🔎 Under review', cls: 'bg-gold-500/15 text-gold-300' },
 };
 
+/** USD label with sensible precision for tiny to large values. */
+function usd(n: number): string {
+  if (n >= 1000) return `$${Math.round(n).toLocaleString()}`;
+  if (n >= 1) return `$${n.toFixed(2)}`;
+  if (n >= 0.01) return `$${n.toFixed(3)}`;
+  return `$${n.toFixed(5)}`;
+}
+
 const KIND_ICON: Record<string, string> = {
   mining: '⛏️',
   checkin: '📅',
@@ -51,11 +59,21 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [history, setHistory] = useState<HistoryItem[] | null>(null);
   const [withdrawals, setWithdrawals] = useState<WithdrawalItem[] | null>(null);
+  const [priceUsd, setPriceUsd] = useState<number>(u.moolaPriceUsd);
 
   useEffect(() => {
     api<{ items: HistoryItem[] }>('history').then((d) => setHistory(d.items)).catch(() => setHistory([]));
     api<{ items: WithdrawalItem[] }>('withdrawals').then((d) => setWithdrawals(d.items)).catch(() => setWithdrawals([]));
+    api<{ moolaPriceUsd: number }>('stats')
+      .then((s) => s.moolaPriceUsd > 0 && setPriceUsd(s.moolaPriceUsd))
+      .catch(() => {});
   }, [u.balance]);
+
+  // Live USD value of holdings (falls back to the fixed launch-price snapshot).
+  const poolUsd = u.balance * priceUsd; // in-app / withdrawable
+  const walletUsd = u.moolaOnchain * priceUsd; // on-chain wallet holding
+  const totalMoola = u.balance + u.moolaOnchain;
+  const totalUsd = totalMoola * priceUsd;
 
   const MIN = 60;
 
@@ -103,12 +121,28 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
         </div>
       </div>
 
-      {/* Spendable balance */}
+      {/* Total assets */}
       <div className="card-neon p-5 text-center">
-        <div className="label">Spendable Balance</div>
+        <div className="label">Total MOOLA Assets</div>
         <div className="mt-1 text-4xl font-black">
-          <AnimatedNumber value={u.balance} dp={2} className="neon-text" />{' '}
+          <AnimatedNumber value={totalMoola} dp={2} className="neon-text" />{' '}
           <span className="gold-text text-2xl">MOOLA</span>
+        </div>
+        <div className="mt-1 inline-flex items-center gap-1 rounded-full border border-moo-500/30 bg-moo-500/[0.08] px-3 py-0.5 text-sm font-bold text-moo-300">
+          ≈ {usd(totalUsd)}
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2 text-left">
+          <div className="rounded-2xl border border-white/8 bg-black/25 p-3">
+            <div className="label">Pool (spendable)</div>
+            <div className="text-sm font-black">{fmt(u.balance, 2)} <span className="text-white/40">MOOLA</span></div>
+            <div className="text-[11px] text-moo-300">≈ {usd(poolUsd)}</div>
+          </div>
+          <div className="rounded-2xl border border-white/8 bg-black/25 p-3">
+            <div className="label">Wallet holding</div>
+            <div className="text-sm font-black">{fmt(u.moolaOnchain, 2)} <span className="text-white/40">MOOLA</span></div>
+            <div className="text-[11px] text-sky-300">≈ {usd(walletUsd)}</div>
+          </div>
         </div>
       </div>
 
