@@ -30,12 +30,28 @@ const WD_STATUS: Record<string, { label: string; cls: string }> = {
   review: { label: '🔎 Under review', cls: 'bg-gold-500/15 text-gold-300' },
 };
 
-/** USD label with sensible precision for tiny to large values. */
+const SUBSCRIPT = '₀₁₂₃₄₅₆₇₈₉';
+function toSub(n: number): string {
+  return String(n)
+    .split('')
+    .map((d) => SUBSCRIPT[+d])
+    .join('');
+}
+
+/**
+ * USD label with DexScreener-style subscript notation for tiny values, so a
+ * very small holding still reads meaningfully (e.g. $0.0₅229) instead of $0.00.
+ */
 function usd(n: number): string {
+  if (!(n > 0)) return '$0';
   if (n >= 1000) return `$${Math.round(n).toLocaleString()}`;
   if (n >= 1) return `$${n.toFixed(2)}`;
-  if (n >= 0.01) return `$${n.toFixed(3)}`;
-  return `$${n.toFixed(5)}`;
+  if (n >= 0.0001) return `$${n.toFixed(6).replace(/0+$/, '').replace(/\.$/, '')}`;
+  // Very small: 0.0<zeros as subscript><first 3 significant digits>.
+  const exp = Math.floor(Math.log10(n));
+  const zeros = -exp - 1;
+  const mant = Math.round((n / Math.pow(10, exp)) * 100); // 3 significant digits
+  return `$0.0${toSub(zeros)}${mant}`;
 }
 
 const KIND_ICON: Record<string, string> = {
