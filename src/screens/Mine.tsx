@@ -16,7 +16,7 @@ import { MOOLA_TOTAL_SUPPLY } from '@/lib/config';
 import type { PublicUser } from '@/lib/types';
 
 // Persist last-good market stats across remounts so the panel never blanks.
-let statsCache: { marketCapUsd: number; moolaPriceUsd: number } | null = null;
+let statsCache: { marketCapUsd: number; moolaPriceUsd: number; totalUsers?: number } | null = null;
 
 function usdCompact(n: number): string {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
@@ -41,7 +41,9 @@ export function MineScreen() {
   const [levelsOpen, setLevelsOpen] = useState(false);
   const [atfOpen, setAtfOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [stats, setStats] = useState<{ marketCapUsd: number; moolaPriceUsd: number } | null>(statsCache);
+  const [stats, setStats] = useState<{ marketCapUsd: number; moolaPriceUsd: number; totalUsers?: number } | null>(
+    statsCache
+  );
   const mining = user!.mining;
   const now = useNow(mining.active);
 
@@ -50,11 +52,13 @@ export function MineScreen() {
   useEffect(() => {
     let alive = true;
     const load = () =>
-      api<{ marketCapUsd: number; moolaPriceUsd: number }>('stats')
+      api<{ marketCapUsd: number; moolaPriceUsd: number; totalUsers?: number }>('stats')
         .then((s) => {
-          if (!alive || !(s.marketCapUsd > 0)) return;
-          statsCache = s;
-          setStats(s);
+          if (!alive) return;
+          // Keep the last good market cap, but always accept a fresh user count.
+          const next = s.marketCapUsd > 0 ? s : { ...(statsCache ?? { marketCapUsd: 0, moolaPriceUsd: 0 }), totalUsers: s.totalUsers };
+          statsCache = next;
+          setStats(next);
         })
         .catch(() => {});
     load();
@@ -135,6 +139,11 @@ export function MineScreen() {
               />
               {mining.active ? 'MINING' : 'IDLE'}
             </span>
+            {(stats?.totalUsers ?? 0) > 0 && (
+              <span className="chip border border-white/[0.12] bg-white/[0.05] text-white/70">
+                👥 {fmtCompact(stats!.totalUsers!)} miners
+              </span>
+            )}
           </div>
         </div>
         <WalletChip />

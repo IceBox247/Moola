@@ -292,6 +292,17 @@ export async function listWithdrawals(userId: string, limit = 10) {
   }));
 }
 
+let userCountCache: { at: number; n: number } | null = null;
+/** Total registered users (cached 60s so it's cheap to show everywhere). */
+export async function countUsers(): Promise<number> {
+  await ensureSchema();
+  if (userCountCache && Date.now() - userCountCache.at < 60_000) return userCountCache.n;
+  const { rows } = await sql`SELECT COUNT(*)::int AS n FROM users;`;
+  const n = Number(rows[0]?.n ?? 0);
+  userCountCache = { at: Date.now(), n };
+  return n;
+}
+
 export async function getSocialDone(userId: string): Promise<string[]> {
   await ensureSchema();
   const { rows } = await sql`SELECT task_id FROM social_tasks WHERE user_id = ${userId};`;
