@@ -70,6 +70,52 @@ export async function fetchTonBalance(address: string): Promise<number> {
   }
 }
 
+export type JettonMove = { from: string; to: string; amount: number; time: number; ok: boolean };
+
+/**
+ * Outgoing MOOLA jetton transfers made *from* `account`, newest first, read from
+ * tonapi's jetton history. Returns `null` if the history can't be fetched (so
+ * callers can decline to act rather than guess). Each move carries whether the
+ * on-chain transfer succeeded (`ok`) — a bounced/failed transfer never delivered.
+ */
+export async function moolaTransfersFrom(account: string, limit = 200): Promise<JettonMove[] | null> {
+  if (!env.MOOLA_JETTON) return [];
+  try {
+    const url = `${BASE}/accounts/${encodeURIComponent(account)}/jettons/${encodeURIComponent(
+      env.MOOLA_JETTON
+    )}/history?limit=${limit}`;
+    const res = await fetch(url, { headers: headers(), cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      events?: Array<{
+        timestamp?: number;
+        actions?: Array<{
+          type?: string;
+          status?: string;
+          JettonTransfer?: { sender?: { address?: string }; recipient?: { address?: string }; amount?: string };
+        }>;
+      }>;
+    };
+    const out: JettonMove[] = [];
+    for (const ev of data.events ?? []) {
+      const time = Number(ev.timestamp ?? 0) * 1000;
+      for (const a of ev.actions ?? []) {
+        if (a.type !== 'JettonTransfer' || !a.JettonTransfer) continue;
+        const jt = a.JettonTransfer;
+        const from = jt.sender?.address;
+        const to = jt.recipient?.address;
+        if (!from || !to) continue;
+        out.push({ from, to, amount: Number(jt.amount ?? 0) / 1e9, time, ok: (a.status ?? 'ok') === 'ok' });
+      }
+    }
+    // Both incoming and outgoing transfers are returned; callers filter by
+    // sender/recipient after normalising address forms with @ton/core.
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 export async function scanWallet(address: string): Promise<{ atfUsd: number; moolaOnchain: number }> {
   let atfUsd = 0;
   let moolaOnchain = 0;

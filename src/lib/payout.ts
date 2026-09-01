@@ -3,7 +3,7 @@ import { Address, beginCell, toNano } from '@ton/core';
 import { mnemonicToPrivateKey } from '@ton/crypto';
 import { getHttpEndpoint } from '@orbs-network/ton-access';
 import { env } from './config';
-import { moolaBalanceOf } from './ton';
+import { moolaBalanceOf, fetchTonBalance } from './ton';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -22,8 +22,42 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const MOOLA_DECIMALS = 9;
 const JETTON_TRANSFER_OP = 0x0f8a7ea5;
 
+// TON/GRAM attached to each jetton-transfer message. Excess returns to the hot
+// wallet (response_destination); real cost is ~0.03. The gas pre-check below
+// must agree with this value so we never broadcast a transfer that will bounce.
+const MSG_VALUE_TON = 0.1;
+const FWD_VALUE_TON = 0.02;
+// Minimum native (GRAM/TON) balance the hot wallet must hold to safely send one
+// transfer: the message value plus fee/storage headroom.
+const GAS_NEEDED_TON = MSG_VALUE_TON + 0.05;
+
 export function payoutConfigured(): boolean {
   return !!process.env.WITHDRAW_WALLET_MNEMONIC && !!env.MOOLA_JETTON;
+}
+
+/**
+ * The hot wallet's address, derived without any RPC call. Prefers the explicit
+ * WITHDRAW_WALLET_ADDRESS you funded; otherwise derives it from the mnemonic at
+ * the configured (or default v4) wallet version. Returns null if not configured.
+ */
+export async function hotWalletAddress(): Promise<string | null> {
+  if (!process.env.WITHDRAW_WALLET_MNEMONIC) return null;
+  const expected = (process.env.WITHDRAW_WALLET_ADDRESS || '').trim();
+  if (expected) {
+    try {
+      return Address.parse(expected).toString();
+    } catch {
+      /* fall through to derive */
+    }
+  }
+  const words = (process.env.WITHDRAW_WALLET_MNEMONIC || '').trim().split(/\s+/);
+  const key = await mnemonicToPrivateKey(words);
+  const version = (process.env.WITHDRAW_WALLET_VERSION || 'v4').toLowerCase();
+  const wallet =
+    version === 'v5' || version === 'v5r1'
+      ? WalletContractV5R1.create({ workchain: 0, publicKey: key.publicKey })
+      : WalletContractV4.create({ workchain: 0, publicKey: key.publicKey });
+  return wallet.address.toString();
 }
 
 let endpointPromise: Promise<string> | null = null;
@@ -65,9 +99,12 @@ async function openWallet(client: TonClient) {
 // `refundable: true` means the payout definitely did NOT leave the wallet, so
 // it is safe to retry or refund. `false` means it may have broadcast — never
 // auto-retry (double-pay risk); route to manual review instead.
+// `fundIssue: true` flags a transient "wallet needs topping up" condition (out
+// of MOOLA or out of gas) — nothing was broadcast, so the worker keeps the
+// withdrawal queued (rather than refunding it away) until the wallet is funded.
 export type PayoutResult =
   | { ok: true; seqno: number }
-  | { ok: false; error: string; refundable: boolean };
+  | { ok: false; error: string; refundable: boolean; fundIssue?: boolean };
 
 /** Send `amountMoola` MOOLA to `toAddress`. Broadcasts one external message. */
 export async function sendMoola(toAddress: string, amountMoola: number): Promise<PayoutResult> {
@@ -87,14 +124,31 @@ export async function sendMoola(toAddress: string, amountMoola: number): Promise
     const contract = client.open(wallet);
     const hot = wallet.address.toString();
 
-    // Pre-flight: the hot wallet must actually hold enough MOOLA, or the jetton
-    // transfer bounces instantly and the user would be debited for nothing.
+    // Pre-flight 1: the hot wallet must actually hold enough MOOLA, or the
+    // jetton transfer bounces instantly and the user would be debited for
+    // nothing.
     const before = await moolaBalanceOf(hot);
     if (before < amountMoola) {
       return {
         ok: false,
         error: `hot wallet MOOLA too low: has ${before.toFixed(2)}, needs ${amountMoola}. Fund the payout wallet with MOOLA.`,
         refundable: true,
+        fundIssue: true,
+      };
+    }
+
+    // Pre-flight 2: the hot wallet must hold enough native coin (GRAM/TON) for
+    // gas, or the jetton transfer runs out of gas and BOUNCES on-chain — which
+    // is exactly what left earlier withdrawals stuck. Refuse to broadcast when
+    // gas is too low; the worker keeps the row queued until the wallet is
+    // topped up, so it pays automatically instead of bouncing.
+    const gas = await fetchTonBalance(hot);
+    if (gas < GAS_NEEDED_TON) {
+      return {
+        ok: false,
+        error: `hot wallet gas too low: has ${gas.toFixed(3)} GRAM, needs ~${GAS_NEEDED_TON}. Top up the payout wallet with GRAM.`,
+        refundable: true,
+        fundIssue: true,
       };
     }
 
@@ -109,7 +163,7 @@ export async function sendMoola(toAddress: string, amountMoola: number): Promise
       .storeAddress(dest) // destination (the user)
       .storeAddress(wallet.address) // response destination — excess TON returns to hot wallet
       .storeBit(0) // no custom payload
-      .storeCoins(toNano('0.02')) // forward TON — recipient's transfer notification
+      .storeCoins(toNano(String(FWD_VALUE_TON))) // forward TON — recipient's transfer notification
       .storeBit(0) // empty forward payload
       .endCell();
 
@@ -121,9 +175,9 @@ export async function sendMoola(toAddress: string, amountMoola: number): Promise
         internal({
           to: jettonWallet,
           // Ceiling; unused TON returns to the hot wallet (response_destination).
-          // 0.1 covers gas + a first-time recipient jetton-wallet deploy, so it
+          // Covers gas + a first-time recipient jetton-wallet deploy, so it
           // won't bounce; real cost stays ~0.03 TON/payout.
-          value: toNano('0.1'),
+          value: toNano(String(MSG_VALUE_TON)),
           body,
           bounce: true,
         }),
