@@ -65,6 +65,14 @@ export type PublicUser = {
   ownedNfts: string[];
   socialDone: string[];
 
+  videoTask: {
+    status: 'none' | 'pending' | 'approved' | 'rejected';
+    url: string | null;
+    slotsLeft: number;
+    slotsTotal: number;
+    reward: number;
+  } | null;
+
   mining: {
     active: boolean;
     startedAt: number | null;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyInitData } from './auth';
-import { upsertUser, getUser, getSocialDone, withdrawnTotal, type UserRow } from './db';
+import { upsertUser, getUser, getSocialDone, withdrawnTotal, getVideoTaskState, type UserRow } from './db';
 import { serialize } from './state';
 import { moolaMarketStats } from './stonfi';
 
@@ -41,12 +41,13 @@ export function badRequest(msg: string) {
 export async function userResponse(id: string, extra?: Record<string, unknown>) {
   const u = await getUser(id);
   if (!u) return unauthorized();
-  const [socialDone, wTotal, stats] = await Promise.all([
+  const [socialDone, wTotal, stats, videoTask] = await Promise.all([
     getSocialDone(id),
     withdrawnTotal(id),
     // Live market cap embedded so the dashboard never depends on a separate
     // fetch (cached 60s server-side; 0 on any error → client falls back).
     moolaMarketStats().catch(() => null),
+    getVideoTaskState(id).catch(() => null),
   ]);
   return NextResponse.json({
     user: {
@@ -54,6 +55,7 @@ export async function userResponse(id: string, extra?: Record<string, unknown>) 
       withdrawnTotal: wTotal,
       marketCapUsd: stats?.marketCapUsd ?? 0,
       livePriceUsd: stats?.moolaPriceUsd ?? 0,
+      videoTask,
     },
     ...(extra ?? {}),
   });

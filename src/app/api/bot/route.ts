@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { upsertUser, sql } from '@/lib/db';
+import { upsertUser, sql, approveVideoTask, rejectVideoTask } from '@/lib/db';
 import { sendBotMessage } from '@/lib/telegramBot';
 import { links } from '@/lib/links';
 
@@ -80,6 +80,38 @@ export async function POST(req: NextRequest) {
         approve
           ? '✅ Your Moola account is <b>verified</b>! You can withdraw now.'
           : '❌ Your verification was not approved. Please redo it with a clear, well-lit video and photo.'
+      );
+    }
+
+    if (data.startsWith('video:')) {
+      if (!isAdmin) {
+        await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'Not authorized' });
+        return NextResponse.json({ ok: true });
+      }
+      const [, action, userId] = data.split(':');
+      const approve = action === 'approve';
+      let toast = approve ? 'Approved ✅' : 'Rejected ❌';
+      if (approve) {
+        const r = await approveVideoTask(userId);
+        if (!r.credited) toast = r.reason === 'slots full' ? 'All slots filled' : 'Already handled';
+      } else {
+        await rejectVideoTask(userId);
+      }
+      await tg('answerCallbackQuery', { callback_query_id: cq.id, text: toast });
+      if (cq.message) {
+        await tg('editMessageText', {
+          chat_id: cq.message.chat.id,
+          message_id: cq.message.message_id,
+          parse_mode: 'HTML',
+          disable_web_page_preview: false,
+          text: `${cq.message.text ?? ''}\n\n<b>${approve ? '✅ APPROVED — 2500 MOOLA paid' : '❌ REJECTED'}</b> by ${cq.from.first_name ?? 'admin'}`,
+        });
+      }
+      await sendBotMessage(
+        userId,
+        approve
+          ? '🎬 Your Moola video was <b>approved</b>! <b>2500 MOOLA</b> has been added to your balance. 🐮'
+          : '🎬 Your Moola video wasn’t approved this time. You can submit a new one from the Tasks tab.'
       );
     }
     return NextResponse.json({ ok: true });

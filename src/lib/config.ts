@@ -122,6 +122,14 @@ export const game = {
     // so this is a flat token amount rather than a USD value.
     verifyThreshold: 100000,
   },
+
+  // Video bounty: users submit a link to a video promoting Moola (what it is +
+  // how to buy MOOLA). The owner reviews each submission over Telegram and only
+  // approved videos are rewarded. Limited to `slots` winners total.
+  videoTask: {
+    reward: 2500,
+    slots: 50,
+  },
 } as const;
 
 export type Rarity = 'Common' | 'Rare' | 'Epic' | 'Legendary' | 'Genesis';

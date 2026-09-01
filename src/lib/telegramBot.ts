@@ -42,6 +42,41 @@ export async function tgApi(method: string, body: unknown): Promise<boolean> {
 }
 
 /**
+ * Notify the owner (ADMIN_CHAT_ID) of a video-bounty submission with the link
+ * and Approve/Reject inline buttons (handled by the bot webhook). Returns
+ * whether the notification was sent.
+ */
+export async function sendVideoSubmission(
+  userId: string,
+  name: string,
+  username: string | null,
+  url: string
+): Promise<boolean> {
+  const chatId = process.env.ADMIN_CHAT_ID;
+  if (!env.BOT_TOKEN || !chatId) return false;
+  const who = username ? `@${username}` : name || userId;
+  const caption =
+    `🎬 <b>New Moola video submission</b>\n\n` +
+    `From: <b>${who}</b> (<code>${userId}</code>)\n` +
+    `Link: ${url}\n\n` +
+    `Approve to pay the user <b>2500 MOOLA</b>.`;
+  return tgApi('sendMessage', {
+    chat_id: chatId,
+    text: caption,
+    parse_mode: 'HTML',
+    disable_web_page_preview: false,
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '✅ Approve (+2500)', callback_data: `video:approve:${userId}` },
+          { text: '❌ Reject', callback_data: `video:reject:${userId}` },
+        ],
+      ],
+    },
+  });
+}
+
+/**
  * Forward a user's verification video/photo to the admin chat with
  * Approve/Reject inline buttons (handled by the bot webhook).
  */

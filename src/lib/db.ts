@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless';
+import { game } from './config';
 
 /**
  * Vercel Postgres (Neon) data layer. Tables are created lazily on first use so
@@ -144,6 +145,19 @@ async function initSchema(): Promise<void> {
   await sql`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS last_error TEXT;`;
   await sql`ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS processed_at BIGINT;`;
   await sql`CREATE INDEX IF NOT EXISTS idx_wd_status ON withdrawals(status, created_at);`;
+
+  // Video bounty submissions — one row per user (they can resubmit after a
+  // rejection). Reward is credited only when the owner approves.
+  await sql`
+    CREATE TABLE IF NOT EXISTS video_tasks (
+      user_id     TEXT PRIMARY KEY,
+      url         TEXT NOT NULL,
+      status      TEXT NOT NULL DEFAULT 'pending',
+      created_at  BIGINT NOT NULL,
+      reviewed_at BIGINT
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_video_status ON video_tasks(status);`;
 
   // One-time migrations, keyed so each runs exactly once across all instances.
   await sql`CREATE TABLE IF NOT EXISTS migrations (key TEXT PRIMARY KEY, done_at BIGINT NOT NULL);`;
@@ -307,6 +321,90 @@ export async function getSocialDone(userId: string): Promise<string[]> {
   await ensureSchema();
   const { rows } = await sql`SELECT task_id FROM social_tasks WHERE user_id = ${userId};`;
   return rows.map((r) => String(r.task_id));
+}
+
+// ── Video bounty ────────────────────────────────────────────────────────────
+
+export type VideoTaskState = {
+  status: 'none' | 'pending' | 'approved' | 'rejected';
+  url: string | null;
+  slotsLeft: number;
+  slotsTotal: number;
+  reward: number;
+};
+
+async function approvedVideoCount(): Promise<number> {
+  const { rows } = await sql`SELECT COUNT(*)::int AS n FROM video_tasks WHERE status = 'approved';`;
+  return Number(rows[0]?.n ?? 0);
+}
+
+/** This user's video-bounty state + how many winner slots remain. */
+export async function getVideoTaskState(userId: string): Promise<VideoTaskState> {
+  await ensureSchema();
+  const [{ rows }, approved] = await Promise.all([
+    sql`SELECT url, status FROM video_tasks WHERE user_id = ${userId} LIMIT 1;`,
+    approvedVideoCount(),
+  ]);
+  const row = rows[0];
+  return {
+    status: row ? (String(row.status) as VideoTaskState['status']) : 'none',
+    url: row ? String(row.url) : null,
+    slotsLeft: Math.max(0, game.videoTask.slots - approved),
+    slotsTotal: game.videoTask.slots,
+    reward: game.videoTask.reward,
+  };
+}
+
+export type VideoSubmitResult = { ok: boolean; status: VideoTaskState['status']; reason?: string };
+
+/**
+ * Record (or re-record after a rejection) a user's video submission. Never pays
+ * out — the owner approves later. Refuses once all winner slots are filled or
+ * while a submission is already pending/approved.
+ */
+export async function submitVideoTask(userId: string, url: string): Promise<VideoSubmitResult> {
+  await ensureSchema();
+  const approved = await approvedVideoCount();
+  if (approved >= game.videoTask.slots) return { ok: false, status: 'none', reason: 'All slots are filled' };
+
+  const { rows } = await sql`SELECT status FROM video_tasks WHERE user_id = ${userId} LIMIT 1;`;
+  const current = rows[0]?.status as string | undefined;
+  if (current === 'pending') return { ok: false, status: 'pending', reason: 'Your video is already awaiting review' };
+  if (current === 'approved') return { ok: false, status: 'approved', reason: 'You already earned this reward' };
+
+  const now = nowMs();
+  await sql`
+    INSERT INTO video_tasks (user_id, url, status, created_at)
+    VALUES (${userId}, ${url}, 'pending', ${now})
+    ON CONFLICT (user_id) DO UPDATE
+      SET url = ${url}, status = 'pending', created_at = ${now}, reviewed_at = NULL;
+  `;
+  return { ok: true, status: 'pending' };
+}
+
+/**
+ * Approve a submission and credit the reward — idempotent (a second approve
+ * pays nothing) and slot-capped. Returns whether the reward was credited.
+ */
+export async function approveVideoTask(userId: string): Promise<{ credited: boolean; reason?: string }> {
+  await ensureSchema();
+  if ((await approvedVideoCount()) >= game.videoTask.slots) return { credited: false, reason: 'slots full' };
+  const { rows } = await sql`
+    UPDATE video_tasks SET status = 'approved', reviewed_at = ${nowMs()}
+    WHERE user_id = ${userId} AND status <> 'approved'
+    RETURNING user_id;
+  `;
+  if (!rows.length) return { credited: false, reason: 'already approved or missing' };
+  await credit(userId, game.videoTask.reward, 'video_task', 'Moola video reward 🎬');
+  return { credited: true };
+}
+
+export async function rejectVideoTask(userId: string): Promise<void> {
+  await ensureSchema();
+  await sql`
+    UPDATE video_tasks SET status = 'rejected', reviewed_at = ${nowMs()}
+    WHERE user_id = ${userId} AND status <> 'approved';
+  `;
 }
 
 export async function listHistory(userId: string, limit = 40) {

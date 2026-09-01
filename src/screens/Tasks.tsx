@@ -99,9 +99,104 @@ export function TasksScreen() {
         </>
       ) : (
         <div className="space-y-3">
+          <VideoBounty />
           {SOCIAL.map((s) => (
             <SocialTask key={s.id} task={s} done={u.socialDone.includes(s.id)} />
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VideoBounty() {
+  const { user, setUser, toast } = useStore();
+  const vt = user!.videoTask;
+  const [url, setUrl] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  if (!vt) return null;
+
+  const status = vt.status;
+  const full = vt.slotsLeft <= 0;
+  const canSubmit = (status === 'none' || status === 'rejected') && !full;
+
+  async function submit() {
+    const link = url.trim();
+    if (busy || !link) return;
+    haptic('medium');
+    setBusy(true);
+    try {
+      const res = await api<{ user: PublicUser }>('tasks/video', { url: link });
+      setUser(res.user);
+      notify('success');
+      setUrl('');
+      toast('🎬 Video submitted — under review!', 'good');
+    } catch (e) {
+      toast((e as Error).message, 'bad');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card-neon relative overflow-hidden p-4">
+      <div className="flex items-start gap-3">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/5 text-2xl">🎬</div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <div className="font-black">Make a Moola Video</div>
+            <span className="chip shrink-0 border border-gold-400/40 bg-gold-500/[0.1] text-gold-300">
+              +{fmt(vt.reward, 0)}
+            </span>
+          </div>
+          <p className="mt-1 text-xs leading-relaxed text-white/60">
+            Record a video about <b className="text-white/80">what Moola is</b> and{' '}
+            <b className="text-white/80">how to buy MOOLA</b>. Upload it to <b className="text-white/80">YouTube</b>,
+            then paste the link below. Each video is reviewed — approved videos earn{' '}
+            <b className="gold-text">{fmt(vt.reward, 0)} MOOLA</b>.
+          </p>
+          <div className="mt-2 text-[11px] font-semibold text-white/45">
+            {full ? (
+              <span className="text-white/40">All {vt.slotsTotal} slots filled 🎉</span>
+            ) : (
+              <>
+                <span className="neon-text">{vt.slotsLeft}</span> of {vt.slotsTotal} slots left
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {status === 'approved' && (
+        <div className="mt-3 rounded-2xl border border-moo-500/40 bg-moo-500/10 px-3 py-2 text-sm font-bold text-moo-300">
+          ✅ Approved · +{fmt(vt.reward, 0)} MOOLA added to your balance
+        </div>
+      )}
+
+      {status === 'pending' && (
+        <div className="mt-3 rounded-2xl border border-gold-400/40 bg-gold-500/[0.08] px-3 py-2 text-sm font-semibold text-gold-200">
+          ⏳ Submitted — under review. You’ll be notified once it’s approved.
+        </div>
+      )}
+
+      {canSubmit && (
+        <div className="mt-3 space-y-2">
+          {status === 'rejected' && (
+            <div className="text-xs font-semibold text-rose-300/90">
+              ❌ Not approved last time — submit a new video link.
+            </div>
+          )}
+          <input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            inputMode="url"
+            placeholder="Paste your YouTube video link…"
+            className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/35 focus:border-moo-500/50 focus:outline-none"
+          />
+          <button onClick={submit} disabled={busy || !url.trim()} className="btn-gold w-full py-3 disabled:opacity-60">
+            {busy ? '…' : 'Submit Video'}
+          </button>
         </div>
       )}
     </div>
