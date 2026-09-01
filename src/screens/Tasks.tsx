@@ -17,6 +17,9 @@ const SOCIAL = [
   { id: 'subscribe_youtube', title: 'Subscribe on YouTube', reward: 10, icon: '▶️', kind: 'youtube' },
   { id: 'retweet', title: 'X (Twitter) Retweet', reward: 3, icon: '🔁', kind: 'x_post' },
   { id: 'react_post', title: 'React to this Post', reward: 3, icon: '❤️', kind: 'react_post' },
+  { id: 'x_like', title: 'Like this Post', reward: 5, icon: '❤️', kind: 'x_engage' },
+  { id: 'x_retweet2', title: 'Retweet this Post', reward: 5, icon: '🔁', kind: 'x_engage' },
+  { id: 'x_comment', title: 'Comment on this Post', reward: 5, icon: '💬', kind: 'x_engage' },
 ];
 
 export function TasksScreen() {

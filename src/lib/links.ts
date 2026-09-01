@@ -5,6 +5,7 @@ export const links = {
   channel: process.env.NEXT_PUBLIC_CHANNEL_URL || 'https://t.me/',
   x: 'https://x.com/Moolaminer',
   xPost: 'https://x.com/Moolaminer/status/2093144542128095398',
+  xEngage: 'https://x.com/Moolaminer/status/2094786665977954714',
   reactPost: 'https://t.me/moolaTg/6',
   youtube: process.env.NEXT_PUBLIC_YOUTUBE_URL || 'https://youtube.com/',
 };
@@ -44,6 +45,8 @@ export function socialLink(kind: string): string {
       return links.xPost;
     case 'react_post':
       return links.reactPost;
+    case 'x_engage':
+      return links.xEngage;
     case 'youtube':
       return links.youtube;
     default:
