@@ -84,16 +84,35 @@ export type MarketStats = { moolaPriceUsd: number; marketCapUsd: number; tonUsd:
 let statsCache: { at: number; data: MarketStats } | null = null;
 const STATS_TTL_MS = 60_000;
 
+// Tether USDT jetton master on TON — used to price the native coin in USD
+// entirely via STON.fi (tonapi's rate endpoint gets rate-limited on Vercel).
+const USDT_MASTER = 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs';
+
+/** Native coin (TON/GRAM) price in USD via a STON.fi TON->USDT quote. */
+async function tonUsdViaStonfi(): Promise<number> {
+  const sim = await apiClient().simulateSwap({
+    offerAddress: PTON_MASTER,
+    askAddress: USDT_MASTER,
+    offerUnits: String(1e9), // 1 TON
+    slippageTolerance: '0.01',
+  });
+  return Number(sim.askUnits) / 1e6; // USDT has 6 decimals ≈ USD per TON
+}
+
 /**
  * Live MOOLA market stats: derive the MOOLA/TON rate from the pool, price TON
- * in USD, and multiply by the fixed total supply for market cap.
+ * in USD (both via STON.fi so it never depends on a rate-limited price API),
+ * and multiply by the fixed total supply for market cap.
  */
 export async function moolaMarketStats(): Promise<MarketStats> {
   if (statsCache && Date.now() - statsCache.at < STATS_TTL_MS) return statsCache.data;
   // Use a small offer (0.1 TON) so pool slippage barely distorts the quote —
   // a full 1-TON swap on a thin pool over-states the price/market cap.
   const offerNano = 1e8; // 0.1 TON
-  const [sim, tonUsd] = await Promise.all([simulate(String(offerNano), '0.01'), fetchTonUsd()]);
+  const [sim, tonUsd] = await Promise.all([
+    simulate(String(offerNano), '0.01'),
+    tonUsdViaStonfi().catch(() => fetchTonUsd()), // STON.fi first, tonapi fallback
+  ]);
   const askUnits = Number(sim.askUnits); // MOOLA out, in nano
   const priceTon = askUnits > 0 ? offerNano / askUnits : 0; // TON per MOOLA
   const moolaPriceUsd = priceTon * tonUsd;
@@ -102,7 +121,8 @@ export async function moolaMarketStats(): Promise<MarketStats> {
     marketCapUsd: moolaPriceUsd * MOOLA_TOTAL_SUPPLY,
     tonUsd,
   };
-  statsCache = { at: Date.now(), data };
+  // Only cache a real (non-zero) result so a transient failure isn't sticky.
+  if (moolaPriceUsd > 0) statsCache = { at: Date.now(), data };
   return data;
 }
 
