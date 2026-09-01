@@ -124,11 +124,15 @@ export async function sendMoola(toAddress: string, amountMoola: number): Promise
     const contract = client.open(wallet);
     const hot = wallet.address.toString();
 
-    // Pre-flight 1: the hot wallet must actually hold enough MOOLA, or the
-    // jetton transfer bounces instantly and the user would be debited for
-    // nothing.
+    // Pre-flight balance checks — best effort ONLY. These read from tonapi,
+    // which rate-limits Vercel's IP and then returns 0. A 0/unknown reading must
+    // NOT block a payout (that would silently freeze every withdrawal on a
+    // funded wallet); we only refuse to broadcast on a *confirmed* shortfall —
+    // a real positive balance that's genuinely below what this payout needs.
+    // Whatever slips through is still caught after sending by the balance-drop
+    // verification below, so a bounced transfer is never marked paid.
     const before = await moolaBalanceOf(hot);
-    if (before < amountMoola) {
+    if (before > 0 && before < amountMoola) {
       return {
         ok: false,
         error: `hot wallet MOOLA too low: has ${before.toFixed(2)}, needs ${amountMoola}. Fund the payout wallet with MOOLA.`,
@@ -137,13 +141,8 @@ export async function sendMoola(toAddress: string, amountMoola: number): Promise
       };
     }
 
-    // Pre-flight 2: the hot wallet must hold enough native coin (GRAM/TON) for
-    // gas, or the jetton transfer runs out of gas and BOUNCES on-chain — which
-    // is exactly what left earlier withdrawals stuck. Refuse to broadcast when
-    // gas is too low; the worker keeps the row queued until the wallet is
-    // topped up, so it pays automatically instead of bouncing.
     const gas = await fetchTonBalance(hot);
-    if (gas < GAS_NEEDED_TON) {
+    if (gas > 0 && gas < GAS_NEEDED_TON) {
       return {
         ok: false,
         error: `hot wallet gas too low: has ${gas.toFixed(3)} GRAM, needs ~${GAS_NEEDED_TON}. Top up the payout wallet with GRAM.`,
