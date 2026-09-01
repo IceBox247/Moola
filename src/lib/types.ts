@@ -38,6 +38,8 @@ export type PublicUser = {
   levelCeil: number;
 
   moolaPriceUsd: number;
+  marketCapUsd?: number;
+  livePriceUsd?: number;
   heldUsd: number;
   levelUsd: number;
   nextLevelUsd: number;

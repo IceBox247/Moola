@@ -75,7 +75,7 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [history, setHistory] = useState<HistoryItem[] | null>(null);
   const [withdrawals, setWithdrawals] = useState<WithdrawalItem[] | null>(null);
-  const [priceUsd, setPriceUsd] = useState<number>(u.moolaPriceUsd);
+  const [priceUsd, setPriceUsd] = useState<number>(u.livePriceUsd || u.moolaPriceUsd);
 
   useEffect(() => {
     api<{ items: HistoryItem[] }>('history').then((d) => setHistory(d.items)).catch(() => setHistory([]));

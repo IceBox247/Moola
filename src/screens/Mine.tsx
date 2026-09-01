@@ -67,8 +67,11 @@ export function MineScreen() {
 
   // Always show a market cap: live when available, else the fixed launch
   // snapshot (price × 50B) so the panel is never blank.
-  const mcPrice = stats?.moolaPriceUsd ?? user!.moolaPriceUsd;
-  const marketCap = stats?.marketCapUsd ?? user!.moolaPriceUsd * MOOLA_TOTAL_SUPPLY;
+  // Prefer live price from /api/stats, then the value embedded in the user
+  // payload (/api/me), then the fixed launch snapshot — so it's never blank.
+  const mcPrice = stats?.moolaPriceUsd || user!.livePriceUsd || user!.moolaPriceUsd;
+  const marketCap =
+    stats?.marketCapUsd || user!.marketCapUsd || user!.moolaPriceUsd * MOOLA_TOTAL_SUPPLY;
 
   // Anchor the live counter to the server's checkpointed pending value, then
   // grow it locally at the current rate (rate changes when a re-scan lands).

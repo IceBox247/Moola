@@ -90,12 +90,13 @@ const STATS_TTL_MS = 60_000;
  */
 export async function moolaMarketStats(): Promise<MarketStats> {
   if (statsCache && Date.now() - statsCache.at < STATS_TTL_MS) return statsCache.data;
-  const [sim, tonUsd] = await Promise.all([
-    simulate(String(1e9), '0.01'), // 1 TON -> MOOLA
-    fetchTonUsd(),
-  ]);
-  const moolaPerTon = Number(sim.askUnits) / 1e9;
-  const moolaPriceUsd = moolaPerTon > 0 ? (1 / moolaPerTon) * tonUsd : 0;
+  // Use a small offer (0.1 TON) so pool slippage barely distorts the quote —
+  // a full 1-TON swap on a thin pool over-states the price/market cap.
+  const offerNano = 1e8; // 0.1 TON
+  const [sim, tonUsd] = await Promise.all([simulate(String(offerNano), '0.01'), fetchTonUsd()]);
+  const askUnits = Number(sim.askUnits); // MOOLA out, in nano
+  const priceTon = askUnits > 0 ? offerNano / askUnits : 0; // TON per MOOLA
+  const moolaPriceUsd = priceTon * tonUsd;
   const data: MarketStats = {
     moolaPriceUsd,
     marketCapUsd: moolaPriceUsd * MOOLA_TOTAL_SUPPLY,
