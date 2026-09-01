@@ -106,6 +106,7 @@ export const game = {
     { id: 'x_retweet2', title: 'Retweet this Post', reward: 5, kind: 'x_engage' },
     { id: 'x_comment', title: 'Comment on this Post', reward: 5, kind: 'x_engage' },
     { id: 'x_vote', title: 'Go Vote on X', reward: 5, kind: 'x_vote' },
+    { id: 'boost_channel', title: 'Boost Moola Channel', reward: 5, kind: 'boost' },
   ],
 
   referral: {

@@ -8,6 +8,7 @@ export const links = {
   xEngage: 'https://x.com/Moolaminer/status/2094786665977954714',
   xVote: 'https://x.com/Moolaminer/status/2094806407379902522',
   reactPost: 'https://t.me/moolaTg/6',
+  boost: 'https://t.me/boost/moolaTg',
   youtube: process.env.NEXT_PUBLIC_YOUTUBE_URL || 'https://youtube.com/',
 };
 
@@ -46,6 +47,8 @@ export function socialLink(kind: string): string {
       return links.xPost;
     case 'react_post':
       return links.reactPost;
+    case 'boost':
+      return links.boost;
     case 'x_engage':
       return links.xEngage;
     case 'x_vote':
