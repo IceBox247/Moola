@@ -139,11 +139,6 @@ export function MineScreen() {
               />
               {mining.active ? 'MINING' : 'IDLE'}
             </span>
-            {(stats?.totalUsers ?? 0) > 0 && (
-              <span className="chip border border-white/[0.12] bg-white/[0.05] text-white/70">
-                👥 {fmtCompact(stats!.totalUsers!)} miners
-              </span>
-            )}
           </div>
         </div>
         <WalletChip />
@@ -219,6 +214,15 @@ export function MineScreen() {
                 <div className="label">Price</div>
                 <div className="text-sm font-black text-white">${mcPrice.toFixed(6)}</div>
               </div>
+              {(stats?.totalUsers ?? 0) > 0 && (
+                <>
+                  <div className="h-7 w-px bg-white/10" />
+                  <div>
+                    <div className="label">Miners</div>
+                    <div className="text-sm font-black text-moo-300">{fmtCompact(stats!.totalUsers!)}</div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
