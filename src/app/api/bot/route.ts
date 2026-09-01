@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { upsertUser, sql } from '@/lib/db';
 import { sendBotMessage } from '@/lib/telegramBot';
+import { links } from '@/lib/links';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -118,7 +119,7 @@ export async function POST(req: NextRequest) {
         inline_keyboard: [
           [{ text: '🚀 Start Mining', web_app: { url } }],
           [
-            { text: '🤝 Join Partner', url: process.env.NEXT_PUBLIC_PARTNER_URL || 'https://t.me/' },
+            { text: '🤝 Join Partner', url: links.partner },
             { text: '📣 Join Channel', url: process.env.NEXT_PUBLIC_CHANNEL_URL || 'https://t.me/' },
           ],
         ],

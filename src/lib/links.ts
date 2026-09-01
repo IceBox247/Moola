@@ -1,8 +1,8 @@
 /** Public links surfaced in the UI (set via NEXT_PUBLIC_* env vars). */
 export const links = {
-  partner: process.env.NEXT_PUBLIC_PARTNER_URL || 'https://t.me/',
-  channel: process.env.NEXT_PUBLIC_CHANNEL_URL || 'https://t.me/',
   // Hardcoded so no stale env override can point these at a dead handle.
+  partner: 'https://t.me/ATF_AIRDROP_bot?start=2071398340',
+  channel: process.env.NEXT_PUBLIC_CHANNEL_URL || 'https://t.me/',
   x: 'https://x.com/Moolaminer',
   xPost: 'https://x.com/Moolaminer/status/2093144542128095398',
   reactPost: 'https://t.me/moolaTg/6',
