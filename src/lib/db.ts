@@ -425,6 +425,26 @@ export async function approveVideoTask(userId: string): Promise<{ credited: bool
   return { credited: true };
 }
 
+/** All video submissions (pending first, then approved, then rejected). */
+export async function listVideoSubmissions(limit = 300) {
+  await ensureSchema();
+  const { rows } = await sql`
+    SELECT v.user_id, v.url, v.status, v.created_at, u.first_name, u.username
+    FROM video_tasks v
+    LEFT JOIN users u ON u.id = v.user_id
+    ORDER BY CASE v.status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END, v.created_at DESC
+    LIMIT ${limit};
+  `;
+  return rows.map((r) => ({
+    userId: String(r.user_id),
+    url: String(r.url),
+    status: String(r.status),
+    createdAt: Number(r.created_at),
+    name: (r.first_name as string) ?? null,
+    username: (r.username as string) ?? null,
+  }));
+}
+
 export async function rejectVideoTask(userId: string): Promise<void> {
   await ensureSchema();
   await sql`
