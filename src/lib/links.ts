@@ -10,6 +10,7 @@ export const links = {
   reactPost: 'https://t.me/moolaTg/6',
   boost: 'https://t.me/boost/moolaTg',
   ytVideo: 'https://youtube.com/shorts/f1P5hgx_AHQ',
+  ytVideo2: 'https://youtube.com/shorts/Ehh7pPanxEY',
   youtube: process.env.NEXT_PUBLIC_YOUTUBE_URL || 'https://youtube.com/',
 };
 
@@ -52,6 +53,8 @@ export function socialLink(kind: string): string {
       return links.boost;
     case 'yt_video':
       return links.ytVideo;
+    case 'yt_video2':
+      return links.ytVideo2;
     case 'x_engage':
       return links.xEngage;
     case 'x_vote':

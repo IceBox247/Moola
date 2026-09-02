@@ -29,6 +29,7 @@ const VIDEO_TASKS = [
   { id: 'yt_comment', title: 'Comment on the video', reward: 5, icon: '💬', kind: 'yt_video' },
   { id: 'yt_like', title: 'Like the video', reward: 5, icon: '❤️', kind: 'yt_video' },
   { id: 'yt_share', title: 'Share the video', reward: 5, icon: '🔗', kind: 'yt_video' },
+  { id: 'yt2_comment', title: 'Comment on our 2nd video', reward: 5, icon: '💬', kind: 'yt_video2' },
 ];
 
 export function TasksScreen() {

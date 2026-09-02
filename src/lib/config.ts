@@ -111,6 +111,7 @@ export const game = {
     { id: 'yt_comment', title: 'Comment on our new YouTube video', reward: 5, kind: 'yt_video' },
     { id: 'yt_like', title: 'Like our new YouTube video', reward: 5, kind: 'yt_video' },
     { id: 'yt_share', title: 'Share our new YouTube video', reward: 5, kind: 'yt_video' },
+    { id: 'yt2_comment', title: 'Comment on our 2nd YouTube video', reward: 5, kind: 'yt_video2' },
   ],
 
   referral: {
