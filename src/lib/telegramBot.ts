@@ -50,9 +50,17 @@ export function channelGateEnabled(): boolean {
  *   'unknown'     — couldn't determine (API error, bot not admin, network)
  * Requires the bot to be an admin of the channel.
  */
+// Cache positive membership per user (per warm instance) so frequent task taps
+// don't call Telegram every time. Only 'member' is cached; non-members are
+// re-checked each attempt so a fresh join is detected immediately.
+const memberCache = new Map<string, number>();
+const MEMBER_TTL_MS = 10 * 60 * 1000;
+
 export async function channelMembership(userId: string): Promise<'member' | 'not_member' | 'unknown'> {
   const chat = channelChatId();
   if (!env.BOT_TOKEN || !chat) return 'unknown';
+  const cached = memberCache.get(userId);
+  if (cached && Date.now() - cached < MEMBER_TTL_MS) return 'member';
   try {
     const url =
       `https://api.telegram.org/bot${env.BOT_TOKEN}/getChatMember` +
@@ -61,8 +69,12 @@ export async function channelMembership(userId: string): Promise<'member' | 'not
     const data = (await res.json()) as { ok?: boolean; result?: { status?: string; is_member?: boolean } };
     if (!data?.ok || !data.result) return 'unknown';
     const s = data.result.status;
-    if (s === 'creator' || s === 'administrator' || s === 'member') return 'member';
-    if (s === 'restricted') return data.result.is_member ? 'member' : 'not_member';
+    const ok = () => {
+      memberCache.set(userId, Date.now());
+      return 'member' as const;
+    };
+    if (s === 'creator' || s === 'administrator' || s === 'member') return ok();
+    if (s === 'restricted') return data.result.is_member ? ok() : 'not_member';
     if (s === 'left' || s === 'kicked') return 'not_member';
     return 'unknown';
   } catch {

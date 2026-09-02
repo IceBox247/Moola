@@ -39,6 +39,21 @@ export function badRequest(msg: string) {
   return NextResponse.json({ error: msg }, { status: 400 });
 }
 
+/**
+ * Channel gate for earning actions. Returns a `needsChannel` response when the
+ * user is a Telegram-confirmed non-member of the official channel, else null
+ * (member, unknown/outage, or gate not configured → allowed). Import lazily to
+ * avoid a cycle (telegramBot → config → …).
+ */
+export async function channelBlock(userId: string) {
+  const { channelGateEnabled, channelMembership } = await import('./telegramBot');
+  if (!channelGateEnabled()) return null;
+  if ((await channelMembership(userId)) === 'not_member') {
+    return json({ needsChannel: true, channelUrl: process.env.NEXT_PUBLIC_CHANNEL_URL || '' });
+  }
+  return null;
+}
+
 /** Re-fetch a user and return their serialized public state. */
 export async function userResponse(id: string, extra?: Record<string, unknown>) {
   const u = await getUser(id);

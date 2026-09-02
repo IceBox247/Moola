@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { authed, unauthorized, badRequest, userResponse } from '@/lib/api';
+import { authed, unauthorized, badRequest, userResponse, channelBlock } from '@/lib/api';
 import { sql, credit, nowMs } from '@/lib/db';
 import { game } from '@/lib/config';
 import { onUserEarned } from '@/lib/referrals';
@@ -10,6 +10,8 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   const ctx = await authed(req);
   if (!ctx) return unauthorized();
+  const gate = await channelBlock(ctx.user.id);
+  if (gate) return gate;
 
   const { taskId } = await req.json().catch(() => ({}));
   const task = game.social.find((s) => s.id === taskId);

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { authed, unauthorized, badRequest, userResponse } from '@/lib/api';
+import { authed, unauthorized, badRequest, userResponse, channelBlock } from '@/lib/api';
 import { sql, credit, getUser, dayKey } from '@/lib/db';
 import { game } from '@/lib/config';
 import { ensureAdDay } from '@/lib/state';
@@ -11,6 +11,8 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   const ctx = await authed(req);
   if (!ctx) return unauthorized();
+  const gate = await channelBlock(ctx.user.id);
+  if (gate) return gate;
 
   const { type } = await req.json().catch(() => ({}));
   if (type !== 'watch' && type !== 'verify') return badRequest('bad ad type');

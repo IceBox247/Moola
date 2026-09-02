@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { authed, unauthorized, badRequest, userResponse } from '@/lib/api';
+import { authed, unauthorized, badRequest, userResponse, channelBlock } from '@/lib/api';
 import { submitVideoTask } from '@/lib/db';
 import { sendVideoSubmission } from '@/lib/telegramBot';
 
@@ -14,6 +14,8 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   const ctx = await authed(req);
   if (!ctx) return unauthorized();
+  const gate = await channelBlock(ctx.user.id);
+  if (gate) return gate;
 
   const body = await req.json().catch(() => ({}));
   const url = String(body.url ?? '').trim();

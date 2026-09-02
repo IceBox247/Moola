@@ -46,6 +46,17 @@ const X_TASKS = [
   { id: 'x_engage_all', title: 'Like, Comment & Share our X post', reward: 15, icon: '𝕏', kind: 'x_post' },
 ];
 
+/** If the server blocked an earn action for not being in the channel, open the
+ *  channel and return true so the caller can bail. */
+function channelGated(res: { needsChannel?: boolean; channelUrl?: string } | undefined): boolean {
+  if (res?.needsChannel) {
+    haptic('medium');
+    openLink(res.channelUrl || links.channel);
+    return true;
+  }
+  return false;
+}
+
 // Moola on Facebook — featured on the main Tasks page.
 const FB_TASKS = [
   { id: 'fb_follow', title: 'Follow us on Facebook', reward: 10, icon: '👍', kind: 'fb_follow' },
@@ -159,8 +170,14 @@ function VideoBounty() {
     haptic('medium');
     setBusy(true);
     try {
-      const res = await api<{ user: PublicUser }>('tasks/video', { url: link });
-      setUser(res.user);
+      const res = await api<{ user?: PublicUser; needsChannel?: boolean; channelUrl?: string }>('tasks/video', {
+        url: link,
+      });
+      if (channelGated(res)) {
+        toast('📣 Join our Telegram channel to earn', 'bad');
+        return;
+      }
+      if (res.user) setUser(res.user);
       notify('success');
       setUrl('');
       toast('🎬 Video submitted — under review!', 'good');
@@ -358,10 +375,16 @@ function CheckIn() {
     setBusy(true);
     haptic('medium');
     try {
-      const res = await act<{ user: PublicUser; reward: number }>('tasks/checkin');
+      const res = await act<{ user?: PublicUser; reward?: number; needsChannel?: boolean; channelUrl?: string }>(
+        'tasks/checkin'
+      );
+      if (channelGated(res)) {
+        toast('📣 Join our Telegram channel to earn', 'bad');
+        return;
+      }
       notify('success');
-      playSfx(res.reward >= 100 ? 'reward_big' : 'claim');
-      toast(`✅ Day ${res.user.checkin.day} · +${res.reward} MOOLA`, 'good');
+      playSfx((res.reward ?? 0) >= 100 ? 'reward_big' : 'claim');
+      toast(`✅ Day ${res.user?.checkin.day} · +${res.reward} MOOLA`, 'good');
     } finally {
       setBusy(false);
     }
@@ -426,10 +449,17 @@ function AdTasks() {
   const maxToday = ads.watchTotal * ads.watchReward + ads.verifyTotal * ads.verifyReward;
 
   async function credit(type: 'watch' | 'verify') {
-    const res = await act<{ user: PublicUser; reward: number }>('tasks/ad', { type });
+    const res = await act<{ user?: PublicUser; reward?: number; needsChannel?: boolean; channelUrl?: string }>(
+      'tasks/ad',
+      { type }
+    );
+    if (channelGated(res)) {
+      toast('📣 Join our Telegram channel to earn', 'bad');
+      return;
+    }
     notify('success');
     playSfx('success');
-    toast(`+${fmt(res.reward, 2)} MOOLA`, 'good');
+    toast(`+${fmt(res.reward ?? 0, 2)} MOOLA`, 'good');
   }
 
   async function run(type: 'watch' | 'verify') {
@@ -563,8 +593,15 @@ function SocialTask({
     setBusy(true);
     setTimeout(async () => {
       try {
-        const res = await api<{ user: PublicUser; credited: boolean }>('tasks/social', { taskId: task.id });
-        setUser(res.user);
+        const res = await api<{ user?: PublicUser; credited?: boolean; needsChannel?: boolean; channelUrl?: string }>(
+          'tasks/social',
+          { taskId: task.id }
+        );
+        if (channelGated(res)) {
+          toast('📣 Join our Telegram channel to earn', 'bad');
+          return;
+        }
+        if (res.user) setUser(res.user);
         notify('success');
         if (res.credited) toast(`+${task.reward} MOOLA`, 'good');
       } catch (e) {
