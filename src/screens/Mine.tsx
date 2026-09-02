@@ -9,7 +9,8 @@ import { fmt, countdown, fmtCompact } from '@/lib/format';
 import { WalletChip } from '@/components/WalletChip';
 import { LevelsModal } from '@/components/LevelsModal';
 import { AtfBoostModal } from '@/components/AtfBoostModal';
-import { haptic, notify } from '@/lib/telegram';
+import { haptic, notify, openLink } from '@/lib/telegram';
+import { links } from '@/lib/links';
 import { unlockAudio, playSfx } from '@/lib/audio';
 import { MOOLA_TOTAL_SUPPLY } from '@/lib/config';
 import type { PublicUser } from '@/lib/types';
@@ -118,7 +119,12 @@ export function MineScreen() {
     unlockAudio();
     try {
       if (!mining.active) {
-        await act('mine/start');
+        const res = await act<{ user?: PublicUser; needsChannel?: boolean; channelUrl?: string }>('mine/start');
+        if (res.needsChannel) {
+          openLink(res.channelUrl || links.channel);
+          toast('📣 Join our Telegram channel to start mining, then tap again', 'bad');
+          return;
+        }
         playSfx('mining_start');
         toast('⛏️ Mining started!', 'good');
       } else {

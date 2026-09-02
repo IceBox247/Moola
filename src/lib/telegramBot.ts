@@ -25,6 +25,51 @@ export async function sendBotMessage(chatId: string, text: string): Promise<bool
   }
 }
 
+/**
+ * The channel we gate mining on. Prefers TELEGRAM_CHANNEL_ID (e.g. "@moolaTg"
+ * or a numeric "-100…" id); otherwise derives the @username from the public
+ * channel link. Empty string means "no channel configured" → gate is off.
+ */
+export function channelChatId(): string {
+  const explicit = (process.env.TELEGRAM_CHANNEL_ID || '').trim();
+  if (explicit) return /^[@-]/.test(explicit) ? explicit : `@${explicit}`;
+  const url = process.env.NEXT_PUBLIC_CHANNEL_URL || '';
+  const m = url.match(/t\.me\/(?:s\/)?([A-Za-z0-9_]+)/i);
+  return m ? `@${m[1]}` : '';
+}
+
+/** Whether the "must be in the channel to mine" gate is active. */
+export function channelGateEnabled(): boolean {
+  return !!env.BOT_TOKEN && !!channelChatId();
+}
+
+/**
+ * Check whether a Telegram user is in the official channel. Returns:
+ *   'member'      — creator/admin/member/subscribed
+ *   'not_member'  — Telegram confirms they left or were removed
+ *   'unknown'     — couldn't determine (API error, bot not admin, network)
+ * Requires the bot to be an admin of the channel.
+ */
+export async function channelMembership(userId: string): Promise<'member' | 'not_member' | 'unknown'> {
+  const chat = channelChatId();
+  if (!env.BOT_TOKEN || !chat) return 'unknown';
+  try {
+    const url =
+      `https://api.telegram.org/bot${env.BOT_TOKEN}/getChatMember` +
+      `?chat_id=${encodeURIComponent(chat)}&user_id=${encodeURIComponent(userId)}`;
+    const res = await fetch(url, { cache: 'no-store' });
+    const data = (await res.json()) as { ok?: boolean; result?: { status?: string; is_member?: boolean } };
+    if (!data?.ok || !data.result) return 'unknown';
+    const s = data.result.status;
+    if (s === 'creator' || s === 'administrator' || s === 'member') return 'member';
+    if (s === 'restricted') return data.result.is_member ? 'member' : 'not_member';
+    if (s === 'left' || s === 'kicked') return 'not_member';
+    return 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 /** Call a Telegram Bot API method with a JSON body. */
 export async function tgApi(method: string, body: unknown): Promise<boolean> {
   if (!env.BOT_TOKEN) return false;
