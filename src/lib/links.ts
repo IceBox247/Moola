@@ -14,6 +14,10 @@ export const links = {
   ttVideo1: 'https://vt.tiktok.com/ZSVom6eue/',
   ttVideo2: 'https://vt.tiktok.com/ZSVoa3ogw/',
   ttProfile: 'https://tiktok.com/@moolaminers',
+  fbPage: 'https://www.facebook.com/share/1EkWNExqVJ/',
+  fbPost1: 'https://www.facebook.com/share/r/1bVAJeAVoP/',
+  fbPost2: 'https://www.facebook.com/share/r/1ESU6sbnCD/',
+  fbPost3: 'https://www.facebook.com/share/p/1BdbW1nSro/',
   youtube: process.env.NEXT_PUBLIC_YOUTUBE_URL || 'https://youtube.com/',
 };
 
@@ -64,6 +68,10 @@ export function socialLink(kind: string): string {
       return links.ttVideo2;
     case 'tt_follow':
       return links.ttProfile;
+    case 'fb_follow':
+      return links.fbPage;
+    case 'fb_engage':
+      return links.fbPost1;
     case 'x_engage':
       return links.xEngage;
     case 'x_vote':

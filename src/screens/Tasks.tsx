@@ -8,7 +8,7 @@ import { ProgressBar } from '@/components/ui';
 import { fmt } from '@/lib/format';
 import { haptic, notify, openLink, selection } from '@/lib/telegram';
 import { unlockAudio, playSfx } from '@/lib/audio';
-import { socialLink } from '@/lib/links';
+import { socialLink, links } from '@/lib/links';
 import { api } from '@/lib/client';
 import type { PublicUser } from '@/lib/types';
 
@@ -38,6 +38,12 @@ const TIKTOK_TASKS = [
   { id: 'tt_like2', title: 'Comment & Like our TikTok', reward: 7, icon: '❤️', kind: 'tt_v2' },
   { id: 'tt_follow', title: 'Follow Moola on TikTok', reward: 10, icon: '➕', kind: 'tt_follow' },
   { id: 'tt_share', title: 'Share / Repost our TikTok', reward: 7, icon: '🔁', kind: 'tt_v2' },
+];
+
+// Moola on Facebook — featured on the main Tasks page.
+const FB_TASKS = [
+  { id: 'fb_follow', title: 'Follow us on Facebook', reward: 10, icon: '👍', kind: 'fb_follow' },
+  { id: 'fb_engage', title: 'Like, Comment & Share our posts', reward: 15, icon: '💙', kind: 'fb_engage' },
 ];
 
 export function TasksScreen() {
@@ -112,6 +118,7 @@ export function TasksScreen() {
         <>
           <VideoTasks />
           <TikTokTasks />
+          <FacebookTasks />
           <CheckIn />
           <AdTasks />
         </>
@@ -239,6 +246,47 @@ function VideoTasks() {
       <div className="mt-3 space-y-2">
         {VIDEO_TASKS.map((t) => (
           <SocialTask key={t.id} task={t} done={done.includes(t.id)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FacebookTasks() {
+  const { user } = useStore();
+  const done = user!.socialDone;
+  const allDone = FB_TASKS.every((t) => done.includes(t.id));
+  const posts = [links.fbPost1, links.fbPost2, links.fbPost3];
+
+  return (
+    <div className="card-neon relative overflow-hidden p-4">
+      <div className="flex items-center gap-2">
+        <span className="text-xl">📘</span>
+        <div className="min-w-0 flex-1">
+          <div className="font-black leading-tight">Moola is on Facebook!</div>
+          <div className="text-xs text-white/55">Follow & engage with our posts to earn MOOLA.</div>
+        </div>
+        {allDone && <span className="chip shrink-0 bg-moo-500/15 text-moo-300">✓ All done</span>}
+      </div>
+      <div className="mt-3 space-y-2">
+        {FB_TASKS.map((t) => (
+          <SocialTask key={t.id} task={t} done={done.includes(t.id)} />
+        ))}
+      </div>
+      {/* All 3 posts to like, comment & share for the combined reward. */}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-semibold text-white/45">Open posts:</span>
+        {posts.map((url, i) => (
+          <button
+            key={url}
+            onClick={() => {
+              haptic('light');
+              openLink(url);
+            }}
+            className="chip border border-white/[0.12] bg-white/[0.05] text-white/70"
+          >
+            Post {i + 1} ↗
+          </button>
         ))}
       </div>
     </div>

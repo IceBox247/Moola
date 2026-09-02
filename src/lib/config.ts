@@ -117,6 +117,9 @@ export const game = {
     { id: 'tt_like2', title: 'Comment & Like our TikTok', reward: 7, kind: 'tt_v2' },
     { id: 'tt_follow', title: 'Follow Moola on TikTok', reward: 10, kind: 'tt_follow' },
     { id: 'tt_share', title: 'Share / Repost our TikTok', reward: 7, kind: 'tt_v2' },
+    // Moola on Facebook — featured on the main Tasks page.
+    { id: 'fb_follow', title: 'Follow us on Facebook', reward: 10, kind: 'fb_follow' },
+    { id: 'fb_engage', title: 'Like, Comment & Share our Facebook posts', reward: 15, kind: 'fb_engage' },
   ],
 
   referral: {
