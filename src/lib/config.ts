@@ -116,6 +116,7 @@ export const game = {
     { id: 'tt_comment1', title: 'Comment on our TikTok', reward: 7, kind: 'tt_v1' },
     { id: 'tt_like2', title: 'Comment & Like our TikTok', reward: 7, kind: 'tt_v2' },
     { id: 'tt_follow', title: 'Follow Moola on TikTok', reward: 10, kind: 'tt_follow' },
+    { id: 'tt_share', title: 'Share / Repost our TikTok', reward: 7, kind: 'tt_v2' },
   ],
 
   referral: {
