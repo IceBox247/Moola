@@ -47,11 +47,14 @@ export function MineScreen() {
   const mining = user!.mining;
   const now = useNow(mining.active);
 
-  // Live MOOLA market cap (refreshed every ~60s; server-cached). Keep the last
-  // good value on a transient failure so the panel never disappears.
+  // Live MOOLA market cap (server-cached ~60s). Poll gently — every 3 min, and
+  // ONLY while the app is actually on screen. Pausing when the mini-app is
+  // backgrounded stops idle tabs from hammering the API/DB (the main driver of
+  // request volume). Keep the last good value on a transient failure.
   useEffect(() => {
     let alive = true;
-    const load = () =>
+    const load = () => {
+      if (!alive || (typeof document !== 'undefined' && document.hidden)) return;
       api<{ marketCapUsd: number; moolaPriceUsd: number; totalUsers?: number }>('stats')
         .then((s) => {
           if (!alive) return;
@@ -61,11 +64,18 @@ export function MineScreen() {
           setStats(next);
         })
         .catch(() => {});
+    };
     load();
-    const t = setInterval(load, 60_000);
+    const t = setInterval(load, 180_000);
+    // Refresh once when the app is brought back to the foreground.
+    const onVis = () => {
+      if (!document.hidden) load();
+    };
+    document.addEventListener('visibilitychange', onVis);
     return () => {
       alive = false;
       clearInterval(t);
+      document.removeEventListener('visibilitychange', onVis);
     };
   }, []);
 

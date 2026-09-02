@@ -230,11 +230,18 @@ export async function upsertUser(input: {
   const existing = await getUser(input.id);
 
   if (existing) {
+    // Only WRITE when the profile actually changed. authed() calls this on
+    // EVERY request, so skipping the no-op UPDATE removes a DB write from the
+    // hottest path (the biggest source of Neon load).
+    const nextName = input.first_name ?? existing.first_name;
+    const nextUser = input.username ?? existing.username;
+    const nextPhoto = input.photo_url ?? existing.photo_url;
+    if (nextName === existing.first_name && nextUser === existing.username && nextPhoto === existing.photo_url) {
+      return existing;
+    }
     const { rows } = await sql`
       UPDATE users
-      SET first_name = ${input.first_name ?? existing.first_name},
-          username   = ${input.username ?? existing.username},
-          photo_url  = ${input.photo_url ?? existing.photo_url}
+      SET first_name = ${nextName}, username = ${nextUser}, photo_url = ${nextPhoto}
       WHERE id = ${input.id}
       RETURNING *;
     `;
@@ -333,9 +340,13 @@ export type VideoTaskState = {
   reward: number;
 };
 
-async function approvedVideoCount(): Promise<number> {
+let approvedVideoCache: { at: number; n: number } | null = null;
+async function approvedVideoCount(fresh = false): Promise<number> {
+  if (!fresh && approvedVideoCache && Date.now() - approvedVideoCache.at < 60_000) return approvedVideoCache.n;
   const { rows } = await sql`SELECT COUNT(*)::int AS n FROM video_tasks WHERE status = 'approved';`;
-  return Number(rows[0]?.n ?? 0);
+  const n = Number(rows[0]?.n ?? 0);
+  approvedVideoCache = { at: Date.now(), n };
+  return n;
 }
 
 /** This user's video-bounty state + how many winner slots remain. */
@@ -388,13 +399,14 @@ export async function submitVideoTask(userId: string, url: string): Promise<Vide
  */
 export async function approveVideoTask(userId: string): Promise<{ credited: boolean; reason?: string }> {
   await ensureSchema();
-  if ((await approvedVideoCount()) >= game.videoTask.slots) return { credited: false, reason: 'slots full' };
+  if ((await approvedVideoCount(true)) >= game.videoTask.slots) return { credited: false, reason: 'slots full' };
   const { rows } = await sql`
     UPDATE video_tasks SET status = 'approved', reviewed_at = ${nowMs()}
     WHERE user_id = ${userId} AND status <> 'approved'
     RETURNING user_id;
   `;
   if (!rows.length) return { credited: false, reason: 'already approved or missing' };
+  approvedVideoCache = null; // a slot was just filled — don't serve a stale count
   await credit(userId, game.videoTask.reward, 'video_task', 'Moola video reward 🎬');
   return { credited: true };
 }

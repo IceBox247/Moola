@@ -101,7 +101,7 @@ export async function applyWalletScan(u: UserRow, address: string): Promise<User
   return (await getUser(settled.id))!;
 }
 
-const RESCAN_INTERVAL_MS = 3 * 60 * 1000;
+const RESCAN_INTERVAL_MS = 15 * 60 * 1000;
 
 /** Re-verify holdings if the last scan is stale (keeps the boost honest). */
 export async function maybeRescan(u: UserRow, force = false): Promise<UserRow> {
