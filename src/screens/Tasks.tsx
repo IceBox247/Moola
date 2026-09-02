@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useStore } from '@/lib/store';
@@ -8,6 +8,7 @@ import { ProgressBar } from '@/components/ui';
 import { fmt } from '@/lib/format';
 import { haptic, notify, openLink, selection } from '@/lib/telegram';
 import { unlockAudio, playSfx } from '@/lib/audio';
+import { adsEnabled, loadAdSdk, showRewardedAd } from '@/lib/ads';
 import { socialLink, links } from '@/lib/links';
 import { api } from '@/lib/client';
 import type { PublicUser } from '@/lib/types';
@@ -414,23 +415,49 @@ function AdTasks() {
   const { user, act, toast } = useStore();
   const ads = user!.ads;
   const [watching, setWatching] = useState<null | 'watch' | 'verify'>(null);
+
+  // Preload the Monetag SDK so the first ad opens instantly.
+  useEffect(() => {
+    loadAdSdk();
+  }, []);
   const totalDone = ads.watched + ads.verified;
   const totalTasks = ads.watchTotal + ads.verifyTotal;
   const earnedToday = ads.watched * ads.watchReward + ads.verified * ads.verifyReward;
   const maxToday = ads.watchTotal * ads.watchReward + ads.verifyTotal * ads.verifyReward;
+
+  async function credit(type: 'watch' | 'verify') {
+    const res = await act<{ user: PublicUser; reward: number }>('tasks/ad', { type });
+    notify('success');
+    playSfx('success');
+    toast(`+${fmt(res.reward, 2)} MOOLA`, 'good');
+  }
 
   async function run(type: 'watch' | 'verify') {
     if (watching) return;
     haptic('light');
     unlockAudio();
     setWatching(type);
+
+    // Real Monetag ad when configured: only credit if the ad actually completes.
+    if (adsEnabled()) {
+      try {
+        const ok = await showRewardedAd(type === 'verify' ? 'pop' : 'interstitial');
+        if (!ok) {
+          toast('No ad available right now — try again shortly', 'bad');
+          return;
+        }
+        await credit(type);
+      } finally {
+        setWatching(null);
+      }
+      return;
+    }
+
+    // Fallback (no ad network configured): simulated wait, then credit.
     const wait = type === 'verify' ? user!.ads.verifyWaitSeconds * 1000 : 1600;
     setTimeout(async () => {
       try {
-        const res = await act<{ user: PublicUser; reward: number }>('tasks/ad', { type });
-        notify('success');
-        playSfx('success');
-        toast(`+${fmt(res.reward, 2)} MOOLA`, 'good');
+        await credit(type);
       } finally {
         setWatching(null);
       }
