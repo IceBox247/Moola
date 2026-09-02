@@ -107,6 +107,10 @@ export const game = {
     { id: 'x_comment', title: 'Comment on this Post', reward: 5, kind: 'x_engage' },
     { id: 'x_vote', title: 'Go Vote on X', reward: 5, kind: 'x_vote' },
     { id: 'boost_channel', title: 'Boost Moola Channel', reward: 5, kind: 'boost' },
+    // New Moola YouTube video — featured on the main Tasks page.
+    { id: 'yt_comment', title: 'Comment on our new YouTube video', reward: 5, kind: 'yt_video' },
+    { id: 'yt_like', title: 'Like our new YouTube video', reward: 5, kind: 'yt_video' },
+    { id: 'yt_share', title: 'Share our new YouTube video', reward: 5, kind: 'yt_video' },
   ],
 
   referral: {

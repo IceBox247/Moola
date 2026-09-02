@@ -24,6 +24,13 @@ const SOCIAL = [
   { id: 'boost_channel', title: 'Boost Moola Channel', reward: 5, icon: '🚀', kind: 'boost' },
 ];
 
+// New Moola YouTube video — featured at the top of the main Tasks page.
+const VIDEO_TASKS = [
+  { id: 'yt_comment', title: 'Comment on the video', reward: 5, icon: '💬', kind: 'yt_video' },
+  { id: 'yt_like', title: 'Like the video', reward: 5, icon: '❤️', kind: 'yt_video' },
+  { id: 'yt_share', title: 'Share the video', reward: 5, icon: '🔗', kind: 'yt_video' },
+];
+
 export function TasksScreen() {
   const { user } = useStore();
   const [tab, setTab] = useState<'earn' | 'social'>('earn');
@@ -94,6 +101,7 @@ export function TasksScreen() {
 
       {tab === 'earn' ? (
         <>
+          <VideoTasks />
           <CheckIn />
           <AdTasks />
         </>
@@ -199,6 +207,30 @@ function VideoBounty() {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function VideoTasks() {
+  const { user } = useStore();
+  const done = user!.socialDone;
+  const allDone = VIDEO_TASKS.every((t) => done.includes(t.id));
+
+  return (
+    <div className="card-neon relative overflow-hidden p-4">
+      <div className="flex items-center gap-2">
+        <span className="text-xl">🎥</span>
+        <div className="min-w-0 flex-1">
+          <div className="font-black leading-tight">New Moola Video is out!</div>
+          <div className="text-xs text-white/55">Support it on YouTube — earn MOOLA for each action.</div>
+        </div>
+        {allDone && <span className="chip shrink-0 bg-moo-500/15 text-moo-300">✓ All done</span>}
+      </div>
+      <div className="mt-3 space-y-2">
+        {VIDEO_TASKS.map((t) => (
+          <SocialTask key={t.id} task={t} done={done.includes(t.id)} />
+        ))}
+      </div>
     </div>
   );
 }
