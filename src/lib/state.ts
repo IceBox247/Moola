@@ -207,6 +207,11 @@ export function serialize(u: UserRow, socialDone: string[] = [], at = nowMs()) {
     verified: u.verified,
     verifyStatus: u.verify_status,
     verifyThreshold: game.withdraw.verifyThreshold,
+    withdrawFree: !u.last_free_withdraw_at || at - u.last_free_withdraw_at >= game.withdraw.freeCooldownHours * 3_600_000,
+    withdrawNextFreeAt: u.last_free_withdraw_at
+      ? u.last_free_withdraw_at + game.withdraw.freeCooldownHours * 3_600_000
+      : null,
+    withdrawFeeUsd: game.withdraw.extraFeeUsd,
 
     activeNft: u.active_nft,
     activeNftImage: nftById(u.active_nft)?.image ?? '/nft/genesis.webp',

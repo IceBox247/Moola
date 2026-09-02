@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
 import { authed, unauthorized, badRequest, userResponse, json } from '@/lib/api';
-import { sql, getUser, addTx, nowMs, withdrawnTotal } from '@/lib/db';
+import { sql, getUser, addTx, nowMs, withdrawnTotal, freeWithdrawAvailable, markFreeWithdrawal } from '@/lib/db';
 import { game } from '@/lib/config';
 import { runPayouts } from '@/lib/payoutWorker';
+import { verifyWithdrawFee } from '@/lib/withdrawFee';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -19,6 +20,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const amount = Number(body.amount);
   const address = String(body.address ?? '').trim();
+  const payer = String(body.payer ?? '').trim(); // connected wallet that pays the fee
 
   if (!Number.isFinite(amount) || amount <= 0) return badRequest('invalid amount');
   if (amount < game.withdraw.min) return badRequest(`minimum withdrawal is ${game.withdraw.min} MOOLA`);
@@ -30,6 +32,26 @@ export async function POST(req: NextRequest) {
     const already = await withdrawnTotal(ctx.user.id);
     if (amount > game.withdraw.verifyThreshold || already + amount > game.withdraw.verifyThreshold) {
       return json({ needsVerification: true, verifyStatus: ctx.user.verify_status });
+    }
+  }
+
+  // Free-withdrawal limit: the first withdrawal each 24h is free; any extra one
+  // inside the window requires a small on-chain fee to the treasury. We verify
+  // the fee actually landed on-chain (claimed once) BEFORE debiting anything.
+  const free = freeWithdrawAvailable(ctx.user);
+  if (!free) {
+    const fee = await verifyWithdrawFee(ctx.user.id, payer);
+    if (!fee.ok) {
+      if ('needsPay' in fee) {
+        return json({
+          needsFee: true,
+          feeUsd: fee.feeUsd,
+          feeTon: fee.feeTon,
+          feeNanoTon: fee.feeNanoTon,
+          treasury: fee.treasury,
+        });
+      }
+      return json({ feePending: true, error: fee.error });
     }
   }
 
@@ -47,6 +69,8 @@ export async function POST(req: NextRequest) {
   await addTx(ctx.user.id, 'withdraw', -amount, `Withdrawal to ${address.slice(0, 6)}…${address.slice(-4)}`);
   // Persist the address for convenience.
   await sql`UPDATE users SET wallet = ${address} WHERE id = ${ctx.user.id};`;
+  // Only a FREE withdrawal starts the 24h clock; a fee-paid one leaves it be.
+  if (free) await markFreeWithdrawal(ctx.user.id);
 
   // Attempt the on-chain payout right away (best effort). If the wallet isn't
   // configured or the send fails, the row stays queued and the cron sweep +

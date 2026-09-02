@@ -136,6 +136,10 @@ export const game = {
     // one-time identity verification (video + photo). MOOLA isn't tradeable yet,
     // so this is a flat token amount rather than a USD value.
     verifyThreshold: 100000,
+    // One free withdrawal per rolling window; extra withdrawals inside the
+    // window cost an on-chain fee (paid in TON to the treasury/hot wallet).
+    freeCooldownHours: 24,
+    extraFeeUsd: 0.1,
   },
 
   // Video bounty: users submit a link to a video promoting Moola (what it is +

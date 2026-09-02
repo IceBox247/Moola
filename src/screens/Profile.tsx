@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
+import { useTonConnectUI, useTonAddress } from '@tonconnect/ui-react';
 import { useStore } from '@/lib/store';
 import { api } from '@/lib/client';
 import { AnimatedNumber, Skeleton } from '@/components/ui';
@@ -54,6 +55,15 @@ function usd(n: number): string {
   return `$0.0${toSub(zeros)}${mant}`;
 }
 
+/** Compact "3h 12m" / "8m" until a future timestamp. */
+function untilLabel(ts: number): string {
+  const ms = Math.max(0, ts - Date.now());
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
 const KIND_ICON: Record<string, string> = {
   mining: '⛏️',
   checkin: '📅',
@@ -67,7 +77,9 @@ const KIND_ICON: Record<string, string> = {
 };
 
 export function ProfileScreen({ goMine }: { goMine: () => void }) {
-  const { user, act, toast } = useStore();
+  const { user, setUser, toast } = useStore();
+  const [tonUI] = useTonConnectUI();
+  const tonAddress = useTonAddress();
   const u = user!;
   const [amount, setAmount] = useState<string>('');
   const [address, setAddress] = useState<string>(u.wallet ?? '');
@@ -100,19 +112,56 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
     if (!address.trim()) return toast('Enter your TON address', 'bad');
     setBusy(true);
     haptic('heavy');
+    type WResp = {
+      user?: PublicUser;
+      needsVerification?: boolean;
+      needsFee?: boolean;
+      feeUsd?: number;
+      feeNanoTon?: string;
+      treasury?: string;
+      feePending?: boolean;
+    };
+    const submit = () =>
+      api<WResp>('withdraw', { amount: amt, address: address.trim(), payer: tonAddress || undefined });
     try {
-      const res = await act<{ user?: PublicUser; needsVerification?: boolean }>('withdraw', {
-        amount: amt,
-        address: address.trim(),
-      });
+      let res = await submit();
       if (res.needsVerification) {
         setVerifyOpen(true);
         return;
       }
-      notify('success');
-      playSfx('signature');
-      toast('✅ Withdrawal requested!', 'good');
-      setAmount('');
+      // Extra withdrawal in the 24h window → collect the on-chain fee first.
+      if (res.needsFee) {
+        if (!tonAddress) {
+          toast('Connect your wallet to pay the small extra-withdrawal fee', 'bad');
+          return;
+        }
+        toast(`Extra withdrawal today — approve the $${res.feeUsd} fee in your wallet`, 'info');
+        await tonUI.sendTransaction({
+          validUntil: Math.floor(Date.now() / 1000) + 300,
+          messages: [{ address: res.treasury!, amount: res.feeNanoTon! }],
+        });
+        toast('Confirming fee on-chain…', 'info');
+        // Poll until the payment is seen on-chain (then the withdrawal queues).
+        res = await submit();
+        for (let i = 0; i < 8 && !res.user && (res.feePending || res.needsFee); i++) {
+          await new Promise((r) => setTimeout(r, 5000));
+          res = await submit();
+        }
+        if (!res.user) {
+          toast('Fee not confirmed yet — tap Request again in a moment', 'bad');
+          return;
+        }
+      }
+      if (res.user) {
+        setUser(res.user);
+        notify('success');
+        playSfx('signature');
+        toast('✅ Withdrawal requested!', 'good');
+        setAmount('');
+      }
+    } catch (e) {
+      const m = (e as Error).message || 'Withdrawal failed';
+      if (!/reject|cancel|declin/i.test(m)) toast(m, 'bad');
     } finally {
       setBusy(false);
     }
@@ -190,8 +239,28 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
           className="mt-1 w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm outline-none focus:border-moo-500/50"
         />
 
-        <button onClick={withdraw} disabled={busy} className="btn-primary mt-4 w-full py-3.5">
-          {busy ? '…' : 'Request Withdrawal'}
+        {/* Free-withdrawal / fee status */}
+        <div className="mt-3 rounded-2xl border border-white/8 bg-black/25 px-3 py-2 text-center text-[11px]">
+          {u.withdrawFree ? (
+            <span className="font-semibold text-moo-300">
+              ✅ 1 free withdrawal available · then ${u.withdrawFeeUsd.toFixed(2)} fee per extra (24h)
+            </span>
+          ) : (
+            <span className="text-white/55">
+              Free withdrawal used.{' '}
+              {u.withdrawNextFreeAt && (
+                <>
+                  Next free in <span className="neon-text font-semibold">{untilLabel(u.withdrawNextFreeAt)}</span>.{' '}
+                </>
+              )}
+              Withdraw now for a{' '}
+              <span className="gold-text font-semibold">${u.withdrawFeeUsd.toFixed(2)}</span> TON fee.
+            </span>
+          )}
+        </div>
+
+        <button onClick={withdraw} disabled={busy} className="btn-primary mt-3 w-full py-3.5">
+          {busy ? '…' : u.withdrawFree ? 'Request Withdrawal' : `Withdraw ($${u.withdrawFeeUsd.toFixed(2)} fee)`}
         </button>
         <p className="mt-2 text-center text-[11px] text-white/35">
           Paid out in <span className="gold-text font-semibold">MOOLA</span> to your TON wallet by the payout desk.

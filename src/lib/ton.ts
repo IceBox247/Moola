@@ -116,6 +116,53 @@ export async function moolaTransfersFrom(account: string, limit = 200): Promise<
   }
 }
 
+export type TonTransfer = { id: string; from: string; amount: number; time: number; ok: boolean };
+
+/**
+ * Recent incoming native-coin (TON/GRAM) transfers to `account`, read from
+ * tonapi's account events. Used to verify withdrawal fee payments. Returns null
+ * if the events can't be fetched (so callers decline rather than guess).
+ */
+export async function tonTransfersTo(account: string, limit = 50): Promise<TonTransfer[] | null> {
+  try {
+    const url = `${BASE}/accounts/${encodeURIComponent(account)}/events?limit=${limit}`;
+    const res = await fetch(url, { headers: headers(), cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      events?: Array<{
+        event_id?: string;
+        timestamp?: number;
+        actions?: Array<{
+          type?: string;
+          status?: string;
+          TonTransfer?: { sender?: { address?: string }; recipient?: { address?: string }; amount?: number | string };
+        }>;
+      }>;
+    };
+    const out: TonTransfer[] = [];
+    for (const ev of data.events ?? []) {
+      const time = Number(ev.timestamp ?? 0) * 1000;
+      for (let i = 0; i < (ev.actions ?? []).length; i++) {
+        const a = ev.actions![i];
+        if (a.type !== 'TonTransfer' || !a.TonTransfer) continue;
+        const from = a.TonTransfer.sender?.address;
+        const to = a.TonTransfer.recipient?.address;
+        if (!from || !to) continue;
+        out.push({
+          id: `${ev.event_id ?? ''}:${i}`,
+          from,
+          amount: Number(a.TonTransfer.amount ?? 0) / 1e9,
+          time,
+          ok: (a.status ?? 'ok') === 'ok',
+        });
+      }
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 export async function scanWallet(address: string): Promise<{ atfUsd: number; moolaOnchain: number }> {
   let atfUsd = 0;
   let moolaOnchain = 0;

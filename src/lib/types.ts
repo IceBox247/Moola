@@ -59,6 +59,9 @@ export type PublicUser = {
   verifyStatus: string; // 'none' | 'pending' | 'approved' | 'rejected'
   verifyThreshold: number;
   withdrawnTotal: number;
+  withdrawFree: boolean; // free (no-fee) withdrawal available now
+  withdrawNextFreeAt: number | null; // when the next free withdrawal unlocks
+  withdrawFeeUsd: number; // fee for an extra withdrawal inside the window
 
   activeNft: string;
   activeNftImage: string;

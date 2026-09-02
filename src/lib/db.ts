@@ -62,6 +62,7 @@ export type UserRow = {
   mining_settled_at: number | null;
   verified: boolean;
   verify_status: string;
+  last_free_withdraw_at: number | null;
   created_at: number;
 };
 
@@ -159,6 +160,18 @@ async function initSchema(): Promise<void> {
   `;
   await sql`CREATE INDEX IF NOT EXISTS idx_video_status ON video_tasks(status);`;
 
+  // Withdrawal fee: track when a user last took their free withdrawal, and log
+  // consumed on-chain fee payments so one payment can't unlock two withdrawals.
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_free_withdraw_at BIGINT;`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS consumed_fees (
+      event_id TEXT PRIMARY KEY,
+      user_id  TEXT NOT NULL,
+      amount   DOUBLE PRECISION NOT NULL,
+      at       BIGINT NOT NULL
+    );
+  `;
+
   // One-time migrations, keyed so each runs exactly once across all instances.
   await sql`CREATE TABLE IF NOT EXISTS migrations (key TEXT PRIMARY KEY, done_at BIGINT NOT NULL);`;
   // Reopen the X tasks for everyone — the links were broken, so prior "Done"
@@ -209,6 +222,7 @@ function rowToUser(r: Record<string, unknown>): UserRow {
     mining_settled_at: r.mining_settled_at != null ? Number(r.mining_settled_at) : null,
     verified: Boolean(r.verified),
     verify_status: (r.verify_status as string) ?? 'none',
+    last_free_withdraw_at: r.last_free_withdraw_at != null ? Number(r.last_free_withdraw_at) : null,
     created_at: Number(r.created_at),
   };
 }
@@ -417,6 +431,32 @@ export async function rejectVideoTask(userId: string): Promise<void> {
     UPDATE video_tasks SET status = 'rejected', reviewed_at = ${nowMs()}
     WHERE user_id = ${userId} AND status <> 'approved';
   `;
+}
+
+// ── Withdrawal fee ───────────────────────────────────────────────────────────
+
+/** True if the user's free (no-fee) withdrawal is available right now. */
+export function freeWithdrawAvailable(u: UserRow, at = nowMs()): boolean {
+  const windowMs = game.withdraw.freeCooldownHours * 60 * 60 * 1000;
+  return !u.last_free_withdraw_at || at - u.last_free_withdraw_at >= windowMs;
+}
+
+/** Stamp that the user just used their free withdrawal. */
+export async function markFreeWithdrawal(userId: string): Promise<void> {
+  await sql`UPDATE users SET last_free_withdraw_at = ${nowMs()} WHERE id = ${userId};`;
+}
+
+/**
+ * Atomically consume an on-chain fee payment so it can unlock exactly one
+ * withdrawal. Returns true only if THIS call claimed it (INSERT succeeded).
+ */
+export async function consumeFee(eventId: string, userId: string, amount: number): Promise<boolean> {
+  const { rowCount } = await sql`
+    INSERT INTO consumed_fees (event_id, user_id, amount, at)
+    VALUES (${eventId}, ${userId}, ${amount}, ${nowMs()})
+    ON CONFLICT (event_id) DO NOTHING;
+  `;
+  return rowCount > 0;
 }
 
 export async function listHistory(userId: string, limit = 40) {
