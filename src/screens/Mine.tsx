@@ -11,7 +11,6 @@ import { LevelsModal } from '@/components/LevelsModal';
 import { AtfBoostModal } from '@/components/AtfBoostModal';
 import { haptic, notify } from '@/lib/telegram';
 import { unlockAudio, playSfx } from '@/lib/audio';
-import { api } from '@/lib/client';
 import { MOOLA_TOTAL_SUPPLY } from '@/lib/config';
 import type { PublicUser } from '@/lib/types';
 
@@ -55,8 +54,11 @@ export function MineScreen() {
     let alive = true;
     const load = () => {
       if (!alive || (typeof document !== 'undefined' && document.hidden)) return;
-      api<{ marketCapUsd: number; moolaPriceUsd: number; totalUsers?: number }>('stats')
-        .then((s) => {
+      // Plain GET (not the no-store POST) so Vercel's CDN serves this from the
+      // edge — most polls never touch the function or the database.
+      fetch('/api/stats')
+        .then((r) => r.json())
+        .then((s: { marketCapUsd: number; moolaPriceUsd: number; totalUsers?: number }) => {
           if (!alive) return;
           // Keep the last good market cap, but always accept a fresh user count.
           const next = s.marketCapUsd > 0 ? s : { ...(statsCache ?? { marketCapUsd: 0, moolaPriceUsd: 0 }), totalUsers: s.totalUsers };
