@@ -112,6 +112,10 @@ export const game = {
     { id: 'yt_like', title: 'Like our new YouTube video', reward: 5, kind: 'yt_video' },
     { id: 'yt_share', title: 'Share our new YouTube video', reward: 5, kind: 'yt_video' },
     { id: 'yt2_comment', title: 'Comment on our 2nd YouTube video', reward: 5, kind: 'yt_video2' },
+    // Moola on TikTok — featured on the main Tasks page.
+    { id: 'tt_comment1', title: 'Comment on our TikTok', reward: 7, kind: 'tt_v1' },
+    { id: 'tt_like2', title: 'Comment & Like our TikTok', reward: 7, kind: 'tt_v2' },
+    { id: 'tt_follow', title: 'Follow Moola on TikTok', reward: 10, kind: 'tt_follow' },
   ],
 
   referral: {

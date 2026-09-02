@@ -32,6 +32,13 @@ const VIDEO_TASKS = [
   { id: 'yt2_comment', title: 'Comment on our 2nd video', reward: 5, icon: '💬', kind: 'yt_video2' },
 ];
 
+// Moola on TikTok — featured on the main Tasks page.
+const TIKTOK_TASKS = [
+  { id: 'tt_comment1', title: 'Comment on our TikTok', reward: 7, icon: '💬', kind: 'tt_v1' },
+  { id: 'tt_like2', title: 'Comment & Like our TikTok', reward: 7, icon: '❤️', kind: 'tt_v2' },
+  { id: 'tt_follow', title: 'Follow Moola on TikTok', reward: 10, icon: '➕', kind: 'tt_follow' },
+];
+
 export function TasksScreen() {
   const { user } = useStore();
   const [tab, setTab] = useState<'earn' | 'social'>('earn');
@@ -103,6 +110,7 @@ export function TasksScreen() {
       {tab === 'earn' ? (
         <>
           <VideoTasks />
+          <TikTokTasks />
           <CheckIn />
           <AdTasks />
         </>
@@ -229,6 +237,30 @@ function VideoTasks() {
       </div>
       <div className="mt-3 space-y-2">
         {VIDEO_TASKS.map((t) => (
+          <SocialTask key={t.id} task={t} done={done.includes(t.id)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TikTokTasks() {
+  const { user } = useStore();
+  const done = user!.socialDone;
+  const allDone = TIKTOK_TASKS.every((t) => done.includes(t.id));
+
+  return (
+    <div className="card-neon relative overflow-hidden p-4">
+      <div className="flex items-center gap-2">
+        <span className="text-xl">🎵</span>
+        <div className="min-w-0 flex-1">
+          <div className="font-black leading-tight">Moola is on TikTok!</div>
+          <div className="text-xs text-white/55">Follow, comment & like — earn MOOLA for each.</div>
+        </div>
+        {allDone && <span className="chip shrink-0 bg-moo-500/15 text-moo-300">✓ All done</span>}
+      </div>
+      <div className="mt-3 space-y-2">
+        {TIKTOK_TASKS.map((t) => (
           <SocialTask key={t.id} task={t} done={done.includes(t.id)} />
         ))}
       </div>

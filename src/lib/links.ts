@@ -11,6 +11,9 @@ export const links = {
   boost: 'https://t.me/boost/moolaTg',
   ytVideo: 'https://youtube.com/shorts/f1P5hgx_AHQ',
   ytVideo2: 'https://youtube.com/shorts/Ehh7pPanxEY',
+  ttVideo1: 'https://vt.tiktok.com/ZSVom6eue/',
+  ttVideo2: 'https://vt.tiktok.com/ZSVoa3ogw/',
+  ttProfile: 'https://tiktok.com/@moolaminers',
   youtube: process.env.NEXT_PUBLIC_YOUTUBE_URL || 'https://youtube.com/',
 };
 
@@ -55,6 +58,12 @@ export function socialLink(kind: string): string {
       return links.ytVideo;
     case 'yt_video2':
       return links.ytVideo2;
+    case 'tt_v1':
+      return links.ttVideo1;
+    case 'tt_v2':
+      return links.ttVideo2;
+    case 'tt_follow':
+      return links.ttProfile;
     case 'x_engage':
       return links.xEngage;
     case 'x_vote':
