@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyInitData } from './auth';
-import { upsertUser, getUser, getSocialDone, withdrawnTotal, getVideoTaskState, type UserRow } from './db';
+import { upsertUser, getUser, getSocialDone, withdrawnTotal, getVideoTaskState, lpDistributed, type UserRow } from './db';
 import { serialize } from './state';
 import { moolaMarketStats } from './stonfi';
+import { lpRewardsEnabled } from './lp';
+import { game } from './config';
 
 export type Ctx = { user: UserRow; startParam: string | null };
 
@@ -41,14 +43,16 @@ export function badRequest(msg: string) {
 export async function userResponse(id: string, extra?: Record<string, unknown>) {
   const u = await getUser(id);
   if (!u) return unauthorized();
-  const [socialDone, wTotal, stats, videoTask] = await Promise.all([
+  const [socialDone, wTotal, stats, videoTask, lpDist] = await Promise.all([
     getSocialDone(id),
     withdrawnTotal(id),
     // Live market cap embedded so the dashboard never depends on a separate
     // fetch (cached 60s server-side; 0 on any error → client falls back).
     moolaMarketStats().catch(() => null),
     getVideoTaskState(id).catch(() => null),
+    lpRewardsEnabled() ? lpDistributed().catch(() => 0) : Promise.resolve(0),
   ]);
+  const lpCap = game.lpRewards.capMoola;
   return NextResponse.json({
     user: {
       ...serialize(u, socialDone),
@@ -56,6 +60,8 @@ export async function userResponse(id: string, extra?: Record<string, unknown>) 
       marketCapUsd: stats?.marketCapUsd ?? 0,
       livePriceUsd: stats?.moolaPriceUsd ?? 0,
       videoTask,
+      lpRewardsActive: lpRewardsEnabled() && lpDist < lpCap,
+      lpBudgetLeftPct: Math.max(0, Math.min(100, Math.round((1 - lpDist / lpCap) * 100))),
     },
     ...(extra ?? {}),
   });

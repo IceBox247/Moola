@@ -36,6 +36,14 @@ export function stonfiBuyMoola(amountMoola?: number): string {
   return `https://app.ston.fi/swap?${p.toString()}`;
 }
 
+/** STON.fi add-liquidity link for the MOOLA/TON pool. */
+export function stonfiAddLiquidity(): string {
+  const override = process.env.NEXT_PUBLIC_STONFI_LP_URL;
+  if (override) return override;
+  if (MOOLA_JETTON) return `https://app.ston.fi/liquidity/provide?ft=TON&tt=${MOOLA_JETTON}`;
+  return 'https://app.ston.fi/pools';
+}
+
 /** STON.fi swap deep link to buy ATF with TON. */
 export function stonfiBuyAtf(): string {
   const p = new URLSearchParams();

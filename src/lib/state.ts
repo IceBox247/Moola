@@ -1,4 +1,6 @@
-import { sql, dayKey, nowMs, getUser, addTx, type UserRow } from './db';
+import { sql, dayKey, nowMs, getUser, addTx, credit, grantLpReward, type UserRow } from './db';
+import { moolaMarketStats } from './stonfi';
+import { lpValueUsd, lpRewardsEnabled } from './lp';
 import {
   game,
   MAX_LEVEL,
@@ -98,7 +100,35 @@ export async function applyWalletScan(u: UserRow, address: string): Promise<User
     if (rows.length > 0) await addTx(settled.id, 'atf_bonus', bonus, 'ATF holder bonus 🤝');
   }
 
-  return (await getUser(settled.id))!;
+  const scanned = (await getUser(settled.id))!;
+  return settleLpRewards(scanned);
+}
+
+/**
+ * Accrue liquidity rewards: pay the PREVIOUS LP snapshot its share of the daily
+ * rate over the elapsed window (in withdrawable MOOLA, from the fixed budget),
+ * then re-measure the current LP value for the next window. Using the previous
+ * snapshot means freshly-added liquidity can't claim backdated rewards.
+ */
+export async function settleLpRewards(u: UserRow): Promise<UserRow> {
+  if (!lpRewardsEnabled() || !u.wallet) return u;
+  const now = nowMs();
+  const prevUsd = u.lp_usd || 0;
+  const since = u.lp_settled_at ?? now;
+  const elapsedMs = Math.min(Math.max(0, now - since), game.lpRewards.maxAccrueHours * 3_600_000);
+
+  if (prevUsd > 0 && elapsedMs > 0) {
+    const price = (await moolaMarketStats().catch(() => null))?.moolaPriceUsd ?? 0;
+    if (price > 0) {
+      const rewardUsd = prevUsd * game.lpRewards.dailyRate * (elapsedMs / 86_400_000);
+      const granted = await grantLpReward(rewardUsd / price); // clamped to remaining budget
+      if (granted > 0) await credit(u.id, granted, 'lp_reward', 'Liquidity reward 💧');
+    }
+  }
+
+  const nowUsd = await lpValueUsd(u.wallet).catch(() => prevUsd);
+  await sql`UPDATE users SET lp_usd = ${nowUsd}, lp_settled_at = ${now} WHERE id = ${u.id};`;
+  return { ...u, lp_usd: nowUsd, lp_settled_at: now };
 }
 
 const RESCAN_INTERVAL_MS = 15 * 60 * 1000;
@@ -212,6 +242,11 @@ export function serialize(u: UserRow, socialDone: string[] = [], at = nowMs()) {
       ? u.last_free_withdraw_at + game.withdraw.freeCooldownHours * 3_600_000
       : null,
     withdrawFeeUsd: game.withdraw.extraFeeUsd,
+
+    // Liquidity rewards (values only; program status is added in userResponse).
+    lpUsd: round2(u.lp_usd),
+    lpDailyUsd: round4(u.lp_usd * game.lpRewards.dailyRate),
+    lpRate: game.lpRewards.dailyRate,
 
     activeNft: u.active_nft,
     activeNftImage: nftById(u.active_nft)?.image ?? '/nft/genesis.webp',

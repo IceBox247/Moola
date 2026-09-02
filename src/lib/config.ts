@@ -10,6 +10,9 @@ export const env = {
   // On-chain jetton master addresses (fill these to activate boost detection).
   ATF_JETTON: process.env.ATF_JETTON_ADDRESS ?? '',
   MOOLA_JETTON: process.env.MOOLA_JETTON_ADDRESS ?? '',
+  // STON.fi MOOLA/TON pool address (== the LP jetton master). Set this to
+  // activate LP rewards. Find it on the pool's STON.fi page.
+  MOOLA_LP: process.env.MOOLA_LP_ADDRESS ?? '',
   TONAPI_KEY: process.env.TONAPI_KEY ?? '',
 };
 
@@ -140,6 +143,15 @@ export const game = {
     // window cost an on-chain fee (paid in TON to the treasury/hot wallet).
     freeCooldownHours: 24,
     extraFeeUsd: 0.1,
+  },
+
+  // Liquidity rewards: users who provide liquidity to the MOOLA/TON pool earn a
+  // daily % of their LP's USD value, paid in withdrawable MOOLA. Funded from a
+  // fixed budget (10% of supply); the program ends when the budget is spent.
+  lpRewards: {
+    dailyRate: 0.02, // 2% of LP USD value per day
+    capMoola: MOOLA_TOTAL_SUPPLY / 10, // 5,000,000,000 MOOLA total budget
+    maxAccrueHours: 48, // never back-credit more than this per settle (safety)
   },
 
   // Video bounty: users submit a link to a video promoting Moola (what it is +

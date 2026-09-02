@@ -45,6 +45,26 @@ export async function moolaBalanceOf(address: string): Promise<number> {
   return tokenAmount(b);
 }
 
+/** Any jetton balance held by `address` (whole tokens). 0 on any error. */
+export async function jettonBalanceOf(address: string, jetton: string): Promise<number> {
+  if (!jetton) return 0;
+  return tokenAmount(await fetchJetton(address, jetton));
+}
+
+/** Total supply of a jetton (whole tokens). 0 on any error. */
+export async function jettonTotalSupply(jetton: string): Promise<number> {
+  if (!jetton) return 0;
+  try {
+    const res = await fetch(`${BASE}/jettons/${encodeURIComponent(jetton)}`, { headers: headers(), cache: 'no-store' });
+    if (!res.ok) return 0;
+    const d = (await res.json()) as { total_supply?: string; mintable?: boolean; metadata?: { decimals?: string | number } };
+    const dec = Number(d.metadata?.decimals ?? 9);
+    return Number(d.total_supply ?? 0) / Math.pow(10, dec);
+  } catch {
+    return 0;
+  }
+}
+
 /** Native coin (TON / GRAM) price in USD, or 0 if unavailable. */
 export async function fetchTonUsd(): Promise<number> {
   try {

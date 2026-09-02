@@ -63,6 +63,8 @@ export type UserRow = {
   verified: boolean;
   verify_status: string;
   last_free_withdraw_at: number | null;
+  lp_usd: number;
+  lp_settled_at: number | null;
   created_at: number;
 };
 
@@ -172,6 +174,17 @@ async function initSchema(): Promise<void> {
     );
   `;
 
+  // Liquidity rewards: per-user LP snapshot + a single-row budget ledger.
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS lp_usd DOUBLE PRECISION NOT NULL DEFAULT 0;`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS lp_settled_at BIGINT;`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS lp_program (
+      id INTEGER PRIMARY KEY,
+      distributed DOUBLE PRECISION NOT NULL DEFAULT 0
+    );
+  `;
+  await sql`INSERT INTO lp_program (id, distributed) VALUES (1, 0) ON CONFLICT (id) DO NOTHING;`;
+
   // One-time migrations, keyed so each runs exactly once across all instances.
   await sql`CREATE TABLE IF NOT EXISTS migrations (key TEXT PRIMARY KEY, done_at BIGINT NOT NULL);`;
   // Reopen the X tasks for everyone — the links were broken, so prior "Done"
@@ -223,6 +236,8 @@ function rowToUser(r: Record<string, unknown>): UserRow {
     verified: Boolean(r.verified),
     verify_status: (r.verify_status as string) ?? 'none',
     last_free_withdraw_at: r.last_free_withdraw_at != null ? Number(r.last_free_withdraw_at) : null,
+    lp_usd: r.lp_usd != null ? Number(r.lp_usd) : 0,
+    lp_settled_at: r.lp_settled_at != null ? Number(r.lp_settled_at) : null,
     created_at: Number(r.created_at),
   };
 }
@@ -295,6 +310,36 @@ export async function credit(userId: string, amount: number, kind: string, label
     WHERE id = ${userId};
   `;
   await addTx(userId, kind, amount, label);
+}
+
+// ── Liquidity rewards ────────────────────────────────────────────────────────
+
+/** MOOLA distributed so far by the LP rewards program. */
+export async function lpDistributed(): Promise<number> {
+  const { rows } = await sql`SELECT distributed FROM lp_program WHERE id = 1;`;
+  return Number(rows[0]?.distributed ?? 0);
+}
+
+/**
+ * Claim `want` MOOLA from the fixed LP budget, returning how much was actually
+ * granted (clamped to the remaining budget; 0 once the program is exhausted).
+ * The conditional UPDATE + RETURNING makes the clamp atomic against races.
+ */
+export async function grantLpReward(want: number): Promise<number> {
+  if (!(want > 0)) return 0;
+  const cap = game.lpRewards.capMoola;
+  // One atomic statement: read the old total, write the clamped new total, and
+  // return both so the granted amount is exact even under concurrent claims.
+  const { rows } = await sql`
+    WITH prev AS (SELECT distributed AS d FROM lp_program WHERE id = 1)
+    UPDATE lp_program p
+    SET distributed = LEAST(p.distributed + ${want}, ${cap})
+    FROM prev
+    WHERE p.id = 1
+    RETURNING p.distributed AS new_dist, prev.d AS old_dist;
+  `;
+  const granted = Number(rows[0]?.new_dist ?? 0) - Number(rows[0]?.old_dist ?? 0);
+  return Math.max(0, granted);
 }
 
 /** Total MOOLA a user has withdrawn or has queued (excludes rejected/failed). */

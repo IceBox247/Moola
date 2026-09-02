@@ -10,7 +10,7 @@ import { WalletChip } from '@/components/WalletChip';
 import { LevelsModal } from '@/components/LevelsModal';
 import { AtfBoostModal } from '@/components/AtfBoostModal';
 import { haptic, notify, openLink } from '@/lib/telegram';
-import { links } from '@/lib/links';
+import { links, stonfiAddLiquidity } from '@/lib/links';
 import { unlockAudio, playSfx } from '@/lib/audio';
 import { MOOLA_TOTAL_SUPPLY } from '@/lib/config';
 import type { PublicUser } from '@/lib/types';
@@ -264,6 +264,40 @@ export function MineScreen() {
           </button>
         </div>
       </div>
+
+      {/* Liquidity rewards — earn a daily % on MOOLA/TON liquidity */}
+      {u.lpRewardsActive && (
+        <button
+          onClick={() => {
+            haptic('light');
+            openLink(stonfiAddLiquidity());
+          }}
+          className="block w-full rounded-[22px] border border-sky-400/30 bg-gradient-to-b from-sky-500/[0.12] to-transparent p-4 text-left"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="font-black">💧 Provide Liquidity</div>
+            <span className="chip border border-sky-400/40 bg-sky-500/[0.12] text-sky-200">
+              {(u.lpRate * 100).toFixed(0)}% / day
+            </span>
+          </div>
+          {u.lpUsd > 0 ? (
+            <div className="mt-1 text-xs text-white/70">
+              Your LP: <span className="font-bold text-white">${u.lpUsd.toFixed(2)}</span> · earning{' '}
+              <span className="gold-text font-bold">~${u.lpDailyUsd.toFixed(2)}/day</span> in MOOLA
+            </div>
+          ) : (
+            <div className="mt-1 text-xs text-white/60">
+              Add <b className="text-white/80">MOOLA/TON</b> liquidity and earn{' '}
+              <b className="neon-text">{(u.lpRate * 100).toFixed(0)}% daily</b> in withdrawable MOOLA. Tap to add ›
+            </div>
+          )}
+          {typeof u.lpBudgetLeftPct === 'number' && (
+            <div className="mt-2 text-[10px] font-semibold text-white/40">
+              Rewards pool {u.lpBudgetLeftPct}% remaining
+            </div>
+          )}
+        </button>
+      )}
 
       {/* Hero: the MOOLA coin */}
       <div className="relative mx-auto flex flex-col items-center py-3">

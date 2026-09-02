@@ -63,6 +63,12 @@ export type PublicUser = {
   withdrawNextFreeAt: number | null; // when the next free withdrawal unlocks
   withdrawFeeUsd: number; // fee for an extra withdrawal inside the window
 
+  lpUsd: number; // USD value of the user's MOOLA/TON liquidity position
+  lpDailyUsd: number; // estimated daily LP reward in USD
+  lpRate: number; // daily LP reward rate (e.g. 0.02)
+  lpRewardsActive?: boolean; // LP program configured and budget remaining
+  lpBudgetLeftPct?: number; // % of the LP reward budget still available
+
   activeNft: string;
   activeNftImage: string;
   ownedNfts: string[];
