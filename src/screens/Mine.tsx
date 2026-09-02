@@ -9,8 +9,9 @@ import { fmt, countdown, fmtCompact } from '@/lib/format';
 import { WalletChip } from '@/components/WalletChip';
 import { LevelsModal } from '@/components/LevelsModal';
 import { AtfBoostModal } from '@/components/AtfBoostModal';
+import { AddLiquiditySheet } from '@/components/AddLiquiditySheet';
 import { haptic, notify, openLink } from '@/lib/telegram';
-import { links, stonfiAddLiquidity } from '@/lib/links';
+import { links } from '@/lib/links';
 import { unlockAudio, playSfx } from '@/lib/audio';
 import { MOOLA_TOTAL_SUPPLY } from '@/lib/config';
 import type { PublicUser } from '@/lib/types';
@@ -40,6 +41,7 @@ export function MineScreen() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [levelsOpen, setLevelsOpen] = useState(false);
   const [atfOpen, setAtfOpen] = useState(false);
+  const [lpOpen, setLpOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [stats, setStats] = useState<{ marketCapUsd: number; moolaPriceUsd: number; totalUsers?: number } | null>(
     statsCache
@@ -270,7 +272,7 @@ export function MineScreen() {
         <button
           onClick={() => {
             haptic('light');
-            openLink(stonfiAddLiquidity());
+            setLpOpen(true);
           }}
           className="block w-full rounded-[22px] border border-sky-400/30 bg-gradient-to-b from-sky-500/[0.12] to-transparent p-4 text-left"
         >
@@ -421,6 +423,8 @@ export function MineScreen() {
 
       <LevelsModal open={levelsOpen} onClose={() => setLevelsOpen(false)} />
       <AtfBoostModal open={atfOpen} onClose={() => setAtfOpen(false)} />
+      <AddLiquiditySheet open={lpOpen} onClose={() => setLpOpen(false)} rate={u.lpRate} />
+
     </div>
   );
 }

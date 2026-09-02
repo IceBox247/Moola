@@ -82,10 +82,16 @@ export function LevelsModal({ open, onClose }: { open: boolean; onClose: () => v
                 <MiniStat label="Speed" value={`${u.hashrate} TH/s`} gold />
               </div>
               {u.toNextLevel > 0 && (
-                <div className="mt-3 rounded-2xl border border-moo-500/30 bg-moo-500/[0.06] px-4 py-2 text-sm">
-                  <span className="neon-text font-bold">{usd(u.toNextLevelUsd)}</span>
-                  <span className="text-white/55"> ({fmt(u.toNextLevel, 2)} MOOLA) to reach Lvl {u.level + 1}</span>
-                </div>
+                <button
+                  onClick={() => buy(u.toNextLevel)}
+                  className="mt-3 flex w-full items-center justify-between gap-2 rounded-2xl border border-gold-400/40 bg-gold-500/[0.08] px-4 py-2.5 text-left text-sm"
+                >
+                  <span>
+                    <span className="neon-text font-bold">{usd(u.toNextLevelUsd)}</span>
+                    <span className="text-white/55"> ({fmt(u.toNextLevel, 2)} MOOLA) to Lvl {u.level + 1}</span>
+                  </span>
+                  <span className="chip shrink-0 bg-gold-500 text-ink-900 font-black">Buy MOOLA ›</span>
+                </button>
               )}
             </div>
 
