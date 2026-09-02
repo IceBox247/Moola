@@ -120,6 +120,8 @@ export const game = {
     // Moola on Facebook — featured on the main Tasks page.
     { id: 'fb_follow', title: 'Follow us on Facebook', reward: 10, kind: 'fb_follow' },
     { id: 'fb_engage', title: 'Like, Comment & Share our Facebook posts', reward: 15, kind: 'fb_engage' },
+    // Combined like/comment/share on the pinned X post — featured on the main Tasks page.
+    { id: 'x_engage_all', title: 'Like, Comment & Share our X post', reward: 15, kind: 'x_post' },
   ],
 
   referral: {

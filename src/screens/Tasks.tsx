@@ -40,6 +40,11 @@ const TIKTOK_TASKS = [
   { id: 'tt_share', title: 'Share / Repost our TikTok', reward: 7, icon: '🔁', kind: 'tt_v2' },
 ];
 
+// Combined X engagement — featured on the main Tasks page.
+const X_TASKS = [
+  { id: 'x_engage_all', title: 'Like, Comment & Share our X post', reward: 15, icon: '𝕏', kind: 'x_post' },
+];
+
 // Moola on Facebook — featured on the main Tasks page.
 const FB_TASKS = [
   { id: 'fb_follow', title: 'Follow us on Facebook', reward: 10, icon: '👍', kind: 'fb_follow' },
@@ -117,6 +122,7 @@ export function TasksScreen() {
       {tab === 'earn' ? (
         <>
           <VideoTasks />
+          <XTasks />
           <TikTokTasks />
           <FacebookTasks />
           <CheckIn />
@@ -245,6 +251,30 @@ function VideoTasks() {
       </div>
       <div className="mt-3 space-y-2">
         {VIDEO_TASKS.map((t) => (
+          <SocialTask key={t.id} task={t} done={done.includes(t.id)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function XTasks() {
+  const { user } = useStore();
+  const done = user!.socialDone;
+  const allDone = X_TASKS.every((t) => done.includes(t.id));
+
+  return (
+    <div className="card-neon relative overflow-hidden p-4">
+      <div className="flex items-center gap-2">
+        <span className="text-xl font-black">𝕏</span>
+        <div className="min-w-0 flex-1">
+          <div className="font-black leading-tight">Support our X post!</div>
+          <div className="text-xs text-white/55">Like, comment & repost to earn MOOLA.</div>
+        </div>
+        {allDone && <span className="chip shrink-0 bg-moo-500/15 text-moo-300">✓ Done</span>}
+      </div>
+      <div className="mt-3 space-y-2">
+        {X_TASKS.map((t) => (
           <SocialTask key={t.id} task={t} done={done.includes(t.id)} />
         ))}
       </div>
