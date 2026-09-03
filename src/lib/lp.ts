@@ -40,7 +40,10 @@ async function poolReserves(): Promise<Reserves | null> {
       }),
       jettonTotalSupply(env.MOOLA_LP),
     ]);
-    if (!poolRes.ok || !(lpSupply > 0)) return null;
+    // Reserves (from STON.fi) are all the add-liquidity quote needs. lpSupply
+    // (from tonapi) is only used to value an existing position and may be 0 when
+    // tonapi throttles — don't let that block pricing the pool.
+    if (!poolRes.ok) return null;
     const body = (await poolRes.json()) as {
       pool?: { token0_address?: string; reserve0?: string; reserve1?: string };
     };
@@ -119,7 +122,7 @@ export async function lpAddQuote(wallet: string, ton: number): Promise<LpAddQuot
 export async function lpValueUsd(wallet: string): Promise<number> {
   if (!env.MOOLA_LP || !wallet) return 0;
   const [pool, userLp] = await Promise.all([poolInfo(), jettonBalanceOf(wallet, env.MOOLA_LP)]);
-  if (!pool || !(userLp > 0)) return 0;
+  if (!pool || !(pool.lpSupply > 0) || !(userLp > 0)) return 0;
   const share = userLp / pool.lpSupply;
   return Math.max(0, share * pool.tvlUsd);
 }
