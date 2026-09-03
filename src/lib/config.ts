@@ -137,6 +137,11 @@ export const game = {
 
   withdraw: {
     min: 60,
+    // The FIRST withdrawal is gated harder to filter throwaway multi-accounts:
+    // a higher minimum, and the account must be at least `firstAgeHours` old.
+    // Subsequent withdrawals fall back to `min`.
+    firstMin: 3000,
+    firstAgeHours: 24,
     // Withdrawals that push a user's lifetime withdrawn total over this need a
     // one-time identity verification (video + photo). MOOLA isn't tradeable yet,
     // so this is a flat token amount rather than a USD value.

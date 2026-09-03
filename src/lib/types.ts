@@ -62,6 +62,9 @@ export type PublicUser = {
   withdrawFree: boolean; // free (no-fee) withdrawal available now
   withdrawNextFreeAt: number | null; // when the next free withdrawal unlocks
   withdrawFeeUsd: number; // fee for an extra withdrawal inside the window
+  hasWithdrawn?: boolean; // has any prior (non-failed) withdrawal
+  firstWithdrawMin?: number; // higher minimum for the very first withdrawal
+  firstWithdrawUnlockAt?: number; // when the first withdrawal unlocks (24h after join)
 
   lpUsd: number; // USD value of the user's MOOLA/TON liquidity position
   lpDailyUsd: number; // estimated daily LP reward in USD

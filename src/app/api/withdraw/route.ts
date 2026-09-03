@@ -34,8 +34,23 @@ export async function POST(req: NextRequest) {
   const payer = String(body.payer ?? '').trim(); // connected wallet that pays the fee
 
   if (!Number.isFinite(amount) || amount <= 0) return badRequest('invalid amount');
-  if (amount < game.withdraw.min) return badRequest(`minimum withdrawal is ${game.withdraw.min} MOOLA`);
   if (!address) return badRequest('enter your TON address');
+
+  // First withdrawal is gated harder (anti multi-account): higher minimum +
+  // the account must be ≥ firstAgeHours old. "First" = nothing withdrawn yet.
+  const prior = await withdrawnTotal(ctx.user.id);
+  const isFirst = prior <= 0;
+  if (isFirst) {
+    const unlockAt = ctx.user.created_at + game.withdraw.firstAgeHours * 3_600_000;
+    if (Date.now() < unlockAt) {
+      return json({ firstLocked: true, unlockAt, firstMin: game.withdraw.firstMin });
+    }
+    if (amount < game.withdraw.firstMin) {
+      return badRequest(`Your first withdrawal must be at least ${game.withdraw.firstMin} MOOLA.`);
+    }
+  } else if (amount < game.withdraw.min) {
+    return badRequest(`minimum withdrawal is ${game.withdraw.min} MOOLA`);
+  }
 
   // Must be in the official Telegram channel to withdraw.
   const gate = await channelBlock(ctx.user.id);
@@ -51,8 +66,7 @@ export async function POST(req: NextRequest) {
   // Verification gate: once a user's total withdrawn (queued + paid) crosses the
   // threshold, they must be verified. Blocks the request without debiting.
   if (!ctx.user.verified) {
-    const already = await withdrawnTotal(ctx.user.id);
-    if (amount > game.withdraw.verifyThreshold || already + amount > game.withdraw.verifyThreshold) {
+    if (amount > game.withdraw.verifyThreshold || prior + amount > game.withdraw.verifyThreshold) {
       return json({ needsVerification: true, verifyStatus: ctx.user.verify_status });
     }
   }

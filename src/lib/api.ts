@@ -86,6 +86,10 @@ export async function userResponse(id: string, extra?: Record<string, unknown>) 
       videoTask,
       lpRewardsActive: lpRewardsEnabled() && lpDist < lpCap,
       lpBudgetLeftPct: Math.max(0, Math.min(100, Math.round((1 - lpDist / lpCap) * 100))),
+      // First-withdrawal gate (anti multi-account).
+      hasWithdrawn: wTotal > 0,
+      firstWithdrawMin: game.withdraw.firstMin,
+      firstWithdrawUnlockAt: u.created_at + game.withdraw.firstAgeHours * 3_600_000,
     },
     ...(extra ?? {}),
   });

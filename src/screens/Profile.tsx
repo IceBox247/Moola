@@ -103,7 +103,11 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
   const totalMoola = u.balance + u.moolaOnchain;
   const totalUsd = totalMoola * priceUsd;
 
-  const MIN = 60;
+  // First withdrawal has a higher minimum; later ones use the default.
+  const isFirstWithdraw = !u.hasWithdrawn;
+  const MIN = isFirstWithdraw ? u.firstWithdrawMin ?? 60 : 60;
+  const firstUnlockAt = u.firstWithdrawUnlockAt ?? 0;
+  const firstLockedNow = isFirstWithdraw && Date.now() < firstUnlockAt;
 
   async function withdraw() {
     const amt = Number(amount);
@@ -120,6 +124,8 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
       feeNanoTon?: string;
       treasury?: string;
       feePending?: boolean;
+      firstLocked?: boolean;
+      unlockAt?: number;
     };
     const submit = () =>
       api<WResp>('withdraw', { amount: amt, address: address.trim(), payer: tonAddress || undefined });
@@ -127,6 +133,10 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
       let res = await submit();
       if (res.needsVerification) {
         setVerifyOpen(true);
+        return;
+      }
+      if (res.firstLocked) {
+        toast(`First withdrawal unlocks ${untilLabel(res.unlockAt ?? 0)} after joining — hold tight!`, 'bad');
         return;
       }
       // Extra withdrawal in the 24h window → collect the on-chain fee first.
@@ -214,7 +224,25 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
       {/* Withdraw */}
       <div className="card p-4">
         <div className="mb-3 font-bold">💸 Withdraw MOOLA</div>
-        <label className="label">Amount (min {MIN} MOOLA)</label>
+
+        {isFirstWithdraw && (
+          <div className="mb-3 rounded-2xl border border-gold-400/30 bg-gold-500/[0.07] px-3 py-2 text-[11px] leading-relaxed text-white/70">
+            🔒 <b className="text-white/85">First withdrawal:</b> minimum{' '}
+            <b className="gold-text">{fmtCompact(MIN)} MOOLA</b>
+            {firstLockedNow ? (
+              <>
+                {' '}
+                · unlocks in <span className="neon-text font-semibold">{untilLabel(firstUnlockAt)}</span>
+              </>
+            ) : (
+              ' · unlocked ✓'
+            )}
+            . This keeps out throwaway/bonus-farming accounts; after your first, the minimum drops to{' '}
+            <b>60 MOOLA</b>.
+          </div>
+        )}
+
+        <label className="label">Amount (min {fmtCompact(MIN)} MOOLA)</label>
         <div className="mt-1 flex gap-2">
           <input
             inputMode="decimal"
