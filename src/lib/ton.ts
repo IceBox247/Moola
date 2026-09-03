@@ -86,10 +86,20 @@ export async function moolaBalanceOf(address: string): Promise<number> {
   return (await moolaBalanceRead(address)) ?? 0;
 }
 
+/**
+ * Any jetton balance held by `address` (whole tokens), or `null` if neither
+ * provider could read it (so callers can keep the last known value).
+ */
+export async function jettonBalanceRead(address: string, jetton: string, decimals = 9): Promise<number | null> {
+  if (!jetton) return 0;
+  const b = await fetchJetton(address, jetton);
+  if (b) return tokenAmount(b);
+  return tcJettonBalance(address, jetton, decimals);
+}
+
 /** Any jetton balance held by `address` (whole tokens). 0 on any error. */
 export async function jettonBalanceOf(address: string, jetton: string): Promise<number> {
-  if (!jetton) return 0;
-  return tokenAmount(await fetchJetton(address, jetton));
+  return (await jettonBalanceRead(address, jetton)) ?? 0;
 }
 
 /** Total supply of a jetton (whole tokens). 0 on any error. */

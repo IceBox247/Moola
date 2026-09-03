@@ -130,7 +130,10 @@ export async function settleLpRewards(u: UserRow): Promise<UserRow> {
     }
   }
 
-  const nowUsd = await lpValueUsd(u.wallet).catch(() => prevUsd);
+  // `null` = couldn't read the LP balance (throttle) → keep the last known
+  // value instead of wiping the user's LP to $0.
+  const read = await lpValueUsd(u.wallet).catch(() => null);
+  const nowUsd = read ?? prevUsd;
   await sql`UPDATE users SET lp_usd = ${nowUsd}, lp_settled_at = ${now} WHERE id = ${u.id};`;
   return { ...u, lp_usd: nowUsd, lp_settled_at: now };
 }

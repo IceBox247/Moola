@@ -1,6 +1,6 @@
 import { Address } from '@ton/core';
 import { env } from './config';
-import { jettonBalanceOf, moolaBalanceOf, fetchTonBalance } from './ton';
+import { jettonBalanceOf, jettonBalanceRead, moolaBalanceOf, fetchTonBalance } from './ton';
 
 /**
  * Value a user's MOOLA/TON liquidity position in USD.
@@ -112,15 +112,19 @@ export async function lpAddQuote(wallet: string, ton: number): Promise<LpAddQuot
   };
 }
 
-/** USD value of the LP position held by `wallet`. 0 if none / unconfigured. */
-export async function lpValueUsd(wallet: string): Promise<number> {
+/**
+ * USD value of the LP position held by `wallet`. Returns `null` when the LP
+ * balance couldn't be read (throttle/outage) so callers keep the last known
+ * value instead of clobbering it to 0. `0` only when the wallet holds no LP.
+ */
+export async function lpValueUsd(wallet: string): Promise<number | null> {
   if (!env.MOOLA_LP || !wallet) return 0;
-  const [pool, userLp] = await Promise.all([poolReserves(), jettonBalanceOf(wallet, env.MOOLA_LP)]);
+  // LP jettons on STON.fi use 9 decimals.
+  const [pool, userLp] = await Promise.all([poolReserves(), jettonBalanceRead(wallet, env.MOOLA_LP, 9)]);
+  if (userLp === null) return null; // couldn't read — unknown, not zero
   if (!pool || !(userLp > 0)) return 0;
-  // STON.fi gives a USD price per LP token — most reliable. Fall back to the
-  // pool share × reserve valuation if that field is missing.
+  // STON.fi gives a USD price per LP token — most reliable.
   if (pool.lpPriceUsd > 0) return userLp * pool.lpPriceUsd;
-  if (pool.lpSupply > 0) return 0; // no lp price available; avoid guessing
   return 0;
 }
 
