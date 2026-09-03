@@ -14,6 +14,10 @@ export const env = {
   // activate LP rewards. Find it on the pool's STON.fi page.
   MOOLA_LP: process.env.MOOLA_LP_ADDRESS ?? '',
   TONAPI_KEY: process.env.TONAPI_KEY ?? '',
+  // Optional toncenter.com API key. Toncenter is used as an independent
+  // fallback for on-chain reads when tonapi throttles the server IP. A key
+  // isn't required (there's a free tier) but lifts the rate limit.
+  TONCENTER_KEY: process.env.TONCENTER_KEY ?? '',
 };
 
 export const MAX_LEVEL = 800;

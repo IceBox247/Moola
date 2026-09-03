@@ -38,11 +38,52 @@ function tokenAmount(b: JettonBalance | null): number {
   return Number(b.balance) / Math.pow(10, dec);
 }
 
-/** MOOLA jetton balance held by `address` (whole tokens). 0 on any error. */
-export async function moolaBalanceOf(address: string): Promise<number> {
+// ── toncenter.com fallback ──────────────────────────────────────────────────
+// tonapi.io throttles the (shared) Vercel server IP, which makes on-chain reads
+// intermittently return nothing. toncenter is an independent provider with its
+// own rate budget, so we fall back to it whenever tonapi comes back empty. Every
+// helper returns `null` on failure (never a fake 0) so callers can tell "read
+// failed" apart from "genuinely zero" and avoid clobbering good data.
+
+const TC_BASE = 'https://toncenter.com/api/v3';
+
+function tcHeaders(): Record<string, string> {
+  const h: Record<string, string> = { accept: 'application/json' };
+  if (env.TONCENTER_KEY) h['X-API-Key'] = env.TONCENTER_KEY;
+  return h;
+}
+
+/** Jetton balance via toncenter v3 (whole tokens). `null` if it can't be read. */
+async function tcJettonBalance(owner: string, master: string, decimals = 9): Promise<number | null> {
+  try {
+    const url = `${TC_BASE}/jetton/wallets?owner_address=${encodeURIComponent(owner)}&jetton_address=${encodeURIComponent(
+      master
+    )}&limit=1`;
+    const res = await fetch(url, { headers: tcHeaders(), cache: 'no-store' });
+    if (!res.ok) return null;
+    const d = (await res.json()) as { jetton_wallets?: Array<{ balance?: string }> };
+    const w = d.jetton_wallets?.[0];
+    if (!w) return 0; // toncenter answered: this owner has no such jetton wallet
+    return Number(w.balance ?? 0) / Math.pow(10, decimals);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * MOOLA jetton balance held by `address` (whole tokens), or `null` if neither
+ * provider could read it (so callers can keep the last known value).
+ */
+export async function moolaBalanceRead(address: string): Promise<number | null> {
   if (!env.MOOLA_JETTON) return 0;
   const b = await fetchJetton(address, env.MOOLA_JETTON);
-  return tokenAmount(b);
+  if (b) return tokenAmount(b);
+  return tcJettonBalance(address, env.MOOLA_JETTON, 9);
+}
+
+/** MOOLA jetton balance held by `address` (whole tokens). 0 on any error. */
+export async function moolaBalanceOf(address: string): Promise<number> {
+  return (await moolaBalanceRead(address)) ?? 0;
 }
 
 /** Any jetton balance held by `address` (whole tokens). 0 on any error. */
@@ -144,6 +185,14 @@ export type TonTransfer = { id: string; from: string; amount: number; time: numb
  * if the events can't be fetched (so callers decline rather than guess).
  */
 export async function tonTransfersTo(account: string, limit = 50): Promise<TonTransfer[] | null> {
+  const viaTonapi = await tonTransfersToTonapi(account, limit);
+  if (viaTonapi !== null) return viaTonapi;
+  // tonapi throttled/failed — fall back to toncenter so fee verification (and
+  // any other incoming-transfer check) still works.
+  return tonTransfersToTC(account, limit);
+}
+
+async function tonTransfersToTonapi(account: string, limit: number): Promise<TonTransfer[] | null> {
   try {
     const url = `${BASE}/accounts/${encodeURIComponent(account)}/events?limit=${limit}`;
     const res = await fetch(url, { headers: headers(), cache: 'no-store' });
@@ -183,21 +232,65 @@ export async function tonTransfersTo(account: string, limit = 50): Promise<TonTr
   }
 }
 
-export async function scanWallet(address: string): Promise<{ atfUsd: number; moolaOnchain: number }> {
-  let atfUsd = 0;
-  let moolaOnchain = 0;
+/** Incoming native-TON transfers to `account` via toncenter v3 (fallback). */
+async function tonTransfersToTC(account: string, limit: number): Promise<TonTransfer[] | null> {
+  try {
+    const url = `${TC_BASE}/transactions?account=${encodeURIComponent(account)}&limit=${limit}&sort=desc`;
+    const res = await fetch(url, { headers: tcHeaders(), cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      transactions?: Array<{
+        hash?: string;
+        now?: number;
+        description?: { aborted?: boolean };
+        in_msg?: { source?: string; destination?: string; value?: string | number };
+      }>;
+    };
+    const out: TonTransfer[] = [];
+    for (const tx of data.transactions ?? []) {
+      const m = tx.in_msg;
+      // A fee payment is an incoming message carrying value from an external
+      // wallet (source set). Ignore contract-internal / no-value messages.
+      if (!m?.source || !m.destination) continue;
+      const value = Number(m.value ?? 0);
+      if (!(value > 0)) continue;
+      out.push({
+        id: tx.hash ?? `${m.source}:${tx.now ?? 0}`,
+        from: m.source,
+        amount: value / 1e9,
+        time: Number(tx.now ?? 0) * 1000,
+        ok: tx.description?.aborted !== true,
+      });
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read a wallet's holdings. Each field is `null` when it could not be read from
+ * any provider (throttle/outage), which callers MUST treat as "unknown, keep the
+ * previous value" — never as a real zero. A field is `0` only when a provider
+ * actually confirmed the wallet holds none.
+ */
+export async function scanWallet(address: string): Promise<{ atfUsd: number | null; moolaOnchain: number | null }> {
+  let atfUsd: number | null = env.ATF_JETTON ? null : 0;
+  let moolaOnchain: number | null = env.MOOLA_JETTON ? null : 0;
 
   if (env.ATF_JETTON) {
     const atf = await fetchJetton(address, env.ATF_JETTON);
-    const amount = tokenAmount(atf);
-    const priceUsd = atf?.price?.prices?.USD ?? 0;
-    atfUsd = amount * priceUsd;
+    if (atf) {
+      const priceUsd = atf?.price?.prices?.USD ?? 0;
+      atfUsd = Math.round(tokenAmount(atf) * priceUsd * 100) / 100;
+    }
+    // (ATF price needs tonapi; no toncenter fallback for its USD value.)
   }
 
   if (env.MOOLA_JETTON) {
-    const moola = await fetchJetton(address, env.MOOLA_JETTON);
-    moolaOnchain = tokenAmount(moola);
+    const bal = await moolaBalanceRead(address); // tonapi → toncenter fallback
+    if (bal !== null) moolaOnchain = Math.round(bal * 100) / 100;
   }
 
-  return { atfUsd: Math.round(atfUsd * 100) / 100, moolaOnchain: Math.round(moolaOnchain * 100) / 100 };
+  return { atfUsd, moolaOnchain };
 }

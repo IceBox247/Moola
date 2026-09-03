@@ -77,7 +77,11 @@ export async function settleMining(u: UserRow): Promise<UserRow> {
 /** Re-scan the wallet, settling the prior segment at the old rate first. */
 export async function applyWalletScan(u: UserRow, address: string): Promise<UserRow> {
   const settled = await settleMining(u); // bank prior segment at the pre-scan rate
-  const { atfUsd, moolaOnchain } = await scanWallet(address);
+  const scan = await scanWallet(address);
+  // A `null` field means the read failed (throttle/outage) — keep the last known
+  // value instead of stomping a real holding to 0. Only a confirmed reading updates.
+  const atfUsd = scan.atfUsd ?? settled.atf_usd ?? 0;
+  const moolaOnchain = scan.moolaOnchain ?? settled.moola_onchain ?? 0;
   const mult = atfMultiplier(atfUsd);
   await sql`
     UPDATE users
