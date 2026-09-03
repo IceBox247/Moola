@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
           chat_id: cq.message.chat.id,
           message_id: cq.message.message_id,
           parse_mode: 'HTML',
-          caption: `${cq.message.caption ?? ''}\n\n<b>${approve ? '✅ APPROVED' : '❌ REJECTED'}</b> by ${cq.from.first_name ?? 'admin'}`,
+          caption: `${cq.message.caption ?? ''}\n\n<b>${approve ? '✅ APPROVED' : '❌ REJECTED'}</b>`,
         });
       }
       await sendBotMessage(
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
           message_id: cq.message.message_id,
           parse_mode: 'HTML',
           disable_web_page_preview: false,
-          text: `${cq.message.text ?? ''}\n\n<b>${approve ? '✅ APPROVED — 2500 MOOLA paid' : '❌ REJECTED'}</b> by ${cq.from.first_name ?? 'admin'}`,
+          text: `${cq.message.text ?? ''}\n\n<b>${approve ? '✅ APPROVED — 2500 MOOLA paid' : '❌ REJECTED'}</b>`,
         });
       }
       await sendBotMessage(
