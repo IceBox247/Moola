@@ -126,6 +126,31 @@ export async function moolaMarketStats(): Promise<MarketStats> {
   return data;
 }
 
+// ATF USD price via STON.fi (ATF -> TON quote × TON/USD), cached. Used as a
+// fallback for the ATF holder boost when tonapi's priced jetton read throttles.
+let atfPriceCache: { at: number; usd: number } | null = null;
+export async function atfPriceUsd(): Promise<number> {
+  if (!env.ATF_JETTON) return 0;
+  if (atfPriceCache && Date.now() - atfPriceCache.at < STATS_TTL_MS) return atfPriceCache.usd;
+  try {
+    const [sim, tonUsd] = await Promise.all([
+      apiClient().simulateSwap({
+        offerAddress: env.ATF_JETTON,
+        askAddress: PTON_MASTER,
+        offerUnits: String(1e9), // 1 ATF (9 decimals)
+        slippageTolerance: '0.02',
+      }),
+      tonUsdViaStonfi().catch(() => fetchTonUsd()),
+    ]);
+    const tonPerAtf = Number(sim.askUnits) / 1e9;
+    const usd = tonPerAtf * tonUsd;
+    if (usd > 0) atfPriceCache = { at: Date.now(), usd };
+    return usd;
+  } catch {
+    return 0;
+  }
+}
+
 export type SwapMessage = { address: string; amount: string; payload: string };
 
 /**

@@ -74,6 +74,7 @@ export type UserRow = {
   verified: boolean;
   verify_status: string;
   support_until: number | null;
+  premium_until: number | null;
   last_free_withdraw_at: number | null;
   lp_usd: number;
   lp_settled_at: number | null;
@@ -179,6 +180,12 @@ async function initSchema(): Promise<void> {
     );
   `;
   await sql`CREATE INDEX IF NOT EXISTS idx_video_status ON video_tasks(status);`;
+  // Daily rejection throttle: after N rejects in a day, resubmission is locked
+  // until the next day.
+  await sql`ALTER TABLE video_tasks ADD COLUMN IF NOT EXISTS reject_day TEXT;`;
+  await sql`ALTER TABLE video_tasks ADD COLUMN IF NOT EXISTS reject_count INTEGER NOT NULL DEFAULT 0;`;
+  // Premium Moola: expiry (ms). NULL = not premium; a far-future value = lifetime.
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_until BIGINT;`;
 
   // Withdrawal fee: track when a user last took their free withdrawal, and log
   // consumed on-chain fee payments so one payment can't unlock two withdrawals.
@@ -282,6 +289,7 @@ function rowToUser(r: Record<string, unknown>): UserRow {
     verified: Boolean(r.verified),
     verify_status: (r.verify_status as string) ?? 'none',
     support_until: r.support_until != null ? Number(r.support_until) : null,
+    premium_until: r.premium_until != null ? Number(r.premium_until) : null,
     last_free_withdraw_at: r.last_free_withdraw_at != null ? Number(r.last_free_withdraw_at) : null,
     lp_usd: r.lp_usd != null ? Number(r.lp_usd) : 0,
     lp_settled_at: r.lp_settled_at != null ? Number(r.lp_settled_at) : null,

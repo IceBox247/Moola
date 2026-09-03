@@ -1,7 +1,8 @@
 import { sql, dayKey, nowMs, getUser, addTx, credit, grantLpReward, normAddr, type UserRow } from './db';
-import { moolaMarketStats } from './stonfi';
+import { moolaMarketStats, atfPriceUsd } from './stonfi';
 import { lpValueUsd, lpRewardsEnabled } from './lp';
 import {
+  env,
   game,
   MAX_LEVEL,
   dailyYield,
@@ -15,7 +16,7 @@ import {
   nfts,
   type NftDef,
 } from './config';
-import { scanWallet } from './ton';
+import { scanWallet, jettonBalanceRead } from './ton';
 
 const SESSION_MS = game.mining.sessionHours * 60 * 60 * 1000;
 
@@ -80,12 +81,22 @@ export async function applyWalletScan(u: UserRow, address: string): Promise<User
   const scan = await scanWallet(address);
   // A `null` field means the read failed (throttle/outage) — keep the last known
   // value instead of stomping a real holding to 0. Only a confirmed reading updates.
-  const atfUsd = scan.atfUsd ?? settled.atf_usd ?? 0;
+  let atfUsd = scan.atfUsd;
+  // tonapi couldn't price ATF — fall back to (toncenter amount × STON.fi price)
+  // so the holder boost still works when tonapi is throttled.
+  if (atfUsd === null && env.ATF_JETTON) {
+    const [amt, price] = await Promise.all([
+      jettonBalanceRead(address, env.ATF_JETTON, 9),
+      atfPriceUsd().catch(() => 0),
+    ]);
+    if (amt !== null && price > 0) atfUsd = Math.round(amt * price * 100) / 100;
+  }
+  const atfUsdFinal = atfUsd ?? settled.atf_usd ?? 0; // still unknown → keep previous
   const moolaOnchain = scan.moolaOnchain ?? settled.moola_onchain ?? 0;
-  const mult = atfMultiplier(atfUsd);
+  const mult = atfMultiplier(atfUsdFinal);
   await sql`
     UPDATE users
-    SET wallet = ${address}, wallet_key = ${normAddr(address)}, atf_usd = ${atfUsd}, atf_mult = ${mult},
+    SET wallet = ${address}, wallet_key = ${normAddr(address)}, atf_usd = ${atfUsdFinal}, atf_mult = ${mult},
         moola_onchain = ${moolaOnchain}, last_scan_at = ${nowMs()}
     WHERE id = ${settled.id};
   `;

@@ -175,6 +175,18 @@ export const game = {
   videoTask: {
     reward: 2500,
     slots: 50,
+    maxRejectsPerDay: 2, // after this many rejections in a day, locked until tomorrow
+  },
+
+  // Premium Moola: pay TON once for perks — extra free withdrawals/day, a higher
+  // no-verification ceiling, and a mining multiplier. Two tiers.
+  premium: {
+    monthTon: 1.1, // 30 days
+    monthDays: 30,
+    lifetimeTon: 5, // never expires
+    freeWithdrawalsPerDay: 3, // vs 1 for free users
+    noKycThreshold: 100_000, // can withdraw up to this without verification
+    miningMultiplier: 2, // 2× mining rate while premium is active
   },
 } as const;
 
