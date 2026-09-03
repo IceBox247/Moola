@@ -1,4 +1,4 @@
-import { sql, dayKey, nowMs, getUser, addTx, credit, grantLpReward, type UserRow } from './db';
+import { sql, dayKey, nowMs, getUser, addTx, credit, grantLpReward, normAddr, type UserRow } from './db';
 import { moolaMarketStats } from './stonfi';
 import { lpValueUsd, lpRewardsEnabled } from './lp';
 import {
@@ -81,7 +81,7 @@ export async function applyWalletScan(u: UserRow, address: string): Promise<User
   const mult = atfMultiplier(atfUsd);
   await sql`
     UPDATE users
-    SET wallet = ${address}, atf_usd = ${atfUsd}, atf_mult = ${mult},
+    SET wallet = ${address}, wallet_key = ${normAddr(address)}, atf_usd = ${atfUsd}, atf_mult = ${mult},
         moola_onchain = ${moolaOnchain}, last_scan_at = ${nowMs()}
     WHERE id = ${settled.id};
   `;

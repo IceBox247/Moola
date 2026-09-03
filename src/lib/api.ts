@@ -17,14 +17,23 @@ export async function authed(req: NextRequest): Promise<Ctx | null> {
   const result = verifyInitData(initData);
   if (!result) return null;
 
-  const user = await upsertUser({
-    id: result.user.id,
-    first_name: result.user.first_name,
-    username: result.user.username,
-    photo_url: result.user.photo_url,
-    referredBy: result.startParam,
-  });
-  return { user, startParam: result.startParam };
+  // Client IP (Vercel sets x-forwarded-for; first entry is the real client).
+  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim();
+
+  try {
+    const user = await upsertUser({
+      id: result.user.id,
+      first_name: result.user.first_name,
+      username: result.user.username,
+      photo_url: result.user.photo_url,
+      referredBy: result.startParam,
+      signupIp: ip,
+    });
+    return { user, startParam: result.startParam };
+  } catch {
+    // IP cap (or a transient error) — treat as unauthenticated.
+    return null;
+  }
 }
 
 export function json(data: unknown, init?: number) {

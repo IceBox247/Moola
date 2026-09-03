@@ -12,7 +12,7 @@ import type { PublicUser } from '@/lib/types';
 export function WalletChip({ variant = 'chip' }: { variant?: 'chip' | 'button' }) {
   const [tonUI] = useTonConnectUI();
   const address = useTonAddress(); // user-friendly UQ… address (empty when disconnected)
-  const { user, setUser } = useStore();
+  const { user, setUser, toast } = useStore();
   const saved = useRef<string | null>(null);
 
   // Sync wallet state to the backend on connect AND disconnect.
@@ -22,7 +22,13 @@ export function WalletChip({ variant = 'chip' }: { variant?: 'chip' | 'button' }
       saved.current = address;
       api<{ user: PublicUser }>('wallet', { address })
         .then((r) => setUser(r.user))
-        .catch(() => {});
+        .catch((e) => {
+          // e.g. wallet already linked to another account — tell the user and
+          // disconnect so it doesn't look connected when it isn't saved.
+          saved.current = null;
+          toast((e as Error).message || 'Could not link this wallet', 'bad');
+          tonUI.disconnect().catch(() => {});
+        });
     } else if (!address && saved.current) {
       // Disconnected — clear on-chain holdings so level/boost revert.
       saved.current = null;
@@ -30,6 +36,7 @@ export function WalletChip({ variant = 'chip' }: { variant?: 'chip' | 'button' }
         .then((r) => setUser(r.user))
         .catch(() => {});
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address, setUser]);
 
   // Wait for TON Connect to finish restoring any prior connection before we

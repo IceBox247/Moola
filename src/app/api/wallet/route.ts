@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { authed, unauthorized, badRequest, userResponse } from '@/lib/api';
 import { applyWalletScan } from '@/lib/state';
+import { walletOwnerId } from '@/lib/db';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -18,6 +19,12 @@ export async function POST(req: NextRequest) {
   const { address } = await req.json().catch(() => ({}));
   const addr = String(address ?? ctx.user.wallet ?? '').trim();
   if (!looksLikeTon(addr)) return badRequest('invalid TON address');
+
+  // One wallet → one account. Block connecting a wallet linked to another user.
+  const owner = await walletOwnerId(addr);
+  if (owner && owner !== ctx.user.id) {
+    return badRequest('This wallet is already linked to another Moola account.');
+  }
 
   await applyWalletScan(ctx.user, addr);
   return userResponse(ctx.user.id);

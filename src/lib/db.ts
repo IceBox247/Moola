@@ -1,5 +1,15 @@
 import { neon } from '@neondatabase/serverless';
+import { Address } from '@ton/core';
 import { game } from './config';
+
+/** Canonical raw form of a TON address for uniqueness checks (null if invalid). */
+export function normAddr(a: string): string | null {
+  try {
+    return Address.parse(a).toRawString().toLowerCase();
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Vercel Postgres (Neon) data layer. Tables are created lazily on first use so
@@ -189,6 +199,30 @@ async function initSchema(): Promise<void> {
   // Dedicated Adsgram ad counter (resets daily with the other ad counts).
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS ads_watched2 INTEGER NOT NULL DEFAULT 0;`;
 
+  // Anti-fraud: canonical wallet key (one wallet → one account), signup IP,
+  // and a global ledger of withdrawal addresses already claimed by an account.
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS wallet_key TEXT;`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS signup_ip TEXT;`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_users_wallet_key ON users(wallet_key);`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_users_signup_ip ON users(signup_ip);`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS used_withdraw_addresses (
+      addr_key TEXT PRIMARY KEY,
+      user_id  TEXT NOT NULL,
+      at       BIGINT NOT NULL
+    );
+  `;
+  // One-time backfill of wallet_key for wallets already connected.
+  const { rows: bf } = await sql`SELECT 1 FROM migrations WHERE key = 'backfill_wallet_key_v1';`;
+  if (!bf.length) {
+    const { rows } = await sql`SELECT id, wallet FROM users WHERE wallet IS NOT NULL AND wallet_key IS NULL;`;
+    for (const r of rows) {
+      const k = normAddr(String(r.wallet));
+      if (k) await sql`UPDATE users SET wallet_key = ${k} WHERE id = ${String(r.id)};`;
+    }
+    await sql`INSERT INTO migrations (key, done_at) VALUES ('backfill_wallet_key_v1', ${nowMs()}) ON CONFLICT DO NOTHING;`;
+  }
+
   // One-time migrations, keyed so each runs exactly once across all instances.
   await sql`CREATE TABLE IF NOT EXISTS migrations (key TEXT PRIMARY KEY, done_at BIGINT NOT NULL);`;
   // Reopen the X tasks for everyone — the links were broken, so prior "Done"
@@ -253,12 +287,76 @@ export async function getUser(id: string): Promise<UserRow | null> {
   return rows[0] ? rowToUser(rows[0]) : null;
 }
 
+// ── Anti-fraud helpers ───────────────────────────────────────────────────────
+
+/** Account id that already owns this wallet (by canonical key), or null. */
+export async function walletOwnerId(address: string): Promise<string | null> {
+  const key = normAddr(address);
+  if (!key) return null;
+  const { rows } = await sql`SELECT id FROM users WHERE wallet_key = ${key} LIMIT 1;`;
+  return rows[0] ? String(rows[0].id) : null;
+}
+
+/**
+ * Account id associated with an address across accounts — either it's someone's
+ * connected wallet, or it was already claimed as a withdrawal address. null if
+ * free. Used to block withdrawing to an address tied to a different account.
+ */
+export async function addressOwnerId(address: string): Promise<string | null> {
+  const key = normAddr(address);
+  if (!key) return null;
+  const { rows } = await sql`
+    SELECT id FROM users WHERE wallet_key = ${key}
+    UNION
+    SELECT user_id AS id FROM used_withdraw_addresses WHERE addr_key = ${key}
+    LIMIT 1;
+  `;
+  return rows[0] ? String(rows[0].id) : null;
+}
+
+/** Persist a wallet on an account with its canonical key (uniqueness source). */
+export async function setUserWallet(userId: string, address: string): Promise<void> {
+  await sql`UPDATE users SET wallet = ${address}, wallet_key = ${normAddr(address)} WHERE id = ${userId};`;
+}
+
+/**
+ * Claim a withdrawal address for a user — first claim wins. Returns false if a
+ * DIFFERENT account already owns it (so the withdrawal must be rejected).
+ */
+export async function claimWithdrawAddress(address: string, userId: string): Promise<boolean> {
+  const key = normAddr(address);
+  if (!key) return true;
+  await sql`
+    INSERT INTO used_withdraw_addresses (addr_key, user_id, at)
+    VALUES (${key}, ${userId}, ${nowMs()})
+    ON CONFLICT (addr_key) DO NOTHING;
+  `;
+  const { rows } = await sql`SELECT user_id FROM used_withdraw_addresses WHERE addr_key = ${key};`;
+  return String(rows[0]?.user_id ?? userId) === userId;
+}
+
+/** How many accounts were created from this IP. */
+export async function accountsFromIp(ip: string): Promise<number> {
+  if (!ip) return 0;
+  const { rows } = await sql`SELECT COUNT(*)::int AS n FROM users WHERE signup_ip = ${ip};`;
+  return Number(rows[0]?.n ?? 0);
+}
+
+/** Thrown when a new signup is blocked by the per-IP account cap. */
+export class IpLimitError extends Error {
+  constructor() {
+    super('ip_limit');
+    this.name = 'IpLimitError';
+  }
+}
+
 export async function upsertUser(input: {
   id: string;
   first_name?: string;
   username?: string | null;
   photo_url?: string | null;
   referredBy?: string | null;
+  signupIp?: string | null;
 }): Promise<UserRow> {
   await ensureSchema();
   const existing = await getUser(input.id);
@@ -282,15 +380,24 @@ export async function upsertUser(input: {
     return rowToUser(rows[0]);
   }
 
+  // Per-IP account cap (opt-in via MAX_ACCOUNTS_PER_IP). Off by default because
+  // mobile carriers share one IP across many real users (NAT) — enable only if
+  // you accept that risk. Applies to brand-new accounts only.
+  const ip = (input.signupIp ?? '').trim();
+  const maxPerIp = Number(process.env.MAX_ACCOUNTS_PER_IP ?? 0);
+  if (maxPerIp > 0 && ip && (await accountsFromIp(ip)) >= maxPerIp) {
+    throw new IpLimitError();
+  }
+
   // Only accept a real, different referrer.
   let referredBy = input.referredBy ?? null;
   if (referredBy === input.id) referredBy = null;
   if (referredBy && !(await getUser(referredBy))) referredBy = null;
 
   const { rows } = await sql`
-    INSERT INTO users (id, first_name, username, photo_url, referred_by, created_at)
+    INSERT INTO users (id, first_name, username, photo_url, referred_by, created_at, signup_ip)
     VALUES (${input.id}, ${input.first_name ?? 'Miner'}, ${input.username ?? null},
-            ${input.photo_url ?? null}, ${referredBy}, ${nowMs()})
+            ${input.photo_url ?? null}, ${referredBy}, ${nowMs()}, ${ip || null})
     RETURNING *;
   `;
   return rowToUser(rows[0]);

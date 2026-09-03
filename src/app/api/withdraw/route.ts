@@ -1,6 +1,17 @@
 import { NextRequest } from 'next/server';
-import { authed, unauthorized, badRequest, userResponse, json } from '@/lib/api';
-import { sql, getUser, addTx, nowMs, withdrawnTotal, freeWithdrawAvailable, markFreeWithdrawal } from '@/lib/db';
+import { authed, unauthorized, badRequest, userResponse, json, channelBlock } from '@/lib/api';
+import {
+  sql,
+  getUser,
+  addTx,
+  nowMs,
+  withdrawnTotal,
+  freeWithdrawAvailable,
+  markFreeWithdrawal,
+  addressOwnerId,
+  claimWithdrawAddress,
+  setUserWallet,
+} from '@/lib/db';
 import { game } from '@/lib/config';
 import { runPayouts } from '@/lib/payoutWorker';
 import { verifyWithdrawFee } from '@/lib/withdrawFee';
@@ -25,6 +36,17 @@ export async function POST(req: NextRequest) {
   if (!Number.isFinite(amount) || amount <= 0) return badRequest('invalid amount');
   if (amount < game.withdraw.min) return badRequest(`minimum withdrawal is ${game.withdraw.min} MOOLA`);
   if (!address) return badRequest('enter your TON address');
+
+  // Must be in the official Telegram channel to withdraw.
+  const gate = await channelBlock(ctx.user.id);
+  if (gate) return gate;
+
+  // One address → one account. Block withdrawing to an address that is tied to
+  // (connected by, or already paid out to) a different Moola account.
+  const owner = await addressOwnerId(address);
+  if (owner && owner !== ctx.user.id) {
+    return badRequest('This wallet address is already linked to another Moola account.');
+  }
 
   // Verification gate: once a user's total withdrawn (queued + paid) crosses the
   // threshold, they must be verified. Blocks the request without debiting.
@@ -55,6 +77,12 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Claim this address for the account (first claim wins). If another account
+  // already owns it, refuse before touching the balance.
+  if (!(await claimWithdrawAddress(address, ctx.user.id))) {
+    return badRequest('This wallet address is already linked to another Moola account.');
+  }
+
   // Debit atomically only if the balance covers it.
   const { rowCount } = await sql`
     UPDATE users SET balance = balance - ${amount}
@@ -67,8 +95,8 @@ export async function POST(req: NextRequest) {
     VALUES (${ctx.user.id}, ${amount}, ${address}, 'pending', ${nowMs()});
   `;
   await addTx(ctx.user.id, 'withdraw', -amount, `Withdrawal to ${address.slice(0, 6)}…${address.slice(-4)}`);
-  // Persist the address for convenience.
-  await sql`UPDATE users SET wallet = ${address} WHERE id = ${ctx.user.id};`;
+  // Persist the address (with its canonical key) for convenience + uniqueness.
+  await setUserWallet(ctx.user.id, address);
   // Only a FREE withdrawal starts the 24h clock; a fee-paid one leaves it be.
   if (free) await markFreeWithdrawal(ctx.user.id);
 
