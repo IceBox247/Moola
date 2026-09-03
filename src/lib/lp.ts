@@ -1,7 +1,6 @@
 import { Address } from '@ton/core';
 import { env } from './config';
-import { jettonBalanceOf, jettonTotalSupply, moolaBalanceOf, fetchTonBalance } from './ton';
-import { moolaMarketStats } from './stonfi';
+import { jettonBalanceOf, moolaBalanceOf, fetchTonBalance } from './ton';
 
 /**
  * Value a user's MOOLA/TON liquidity position in USD.
@@ -23,33 +22,38 @@ function norm(a: string): string | null {
   }
 }
 
-type Reserves = { moolaReserve: number; tonReserve: number; lpSupply: number };
+type Reserves = { moolaReserve: number; tonReserve: number; lpSupply: number; lpPriceUsd: number };
 
 let poolCache: { at: number; data: Reserves } | null = null;
 const POOL_TTL_MS = 60_000;
 
-/** Pool MOOLA/TON reserves + LP total supply (whole units). Cached 60s. */
+/**
+ * Pool data straight from STON.fi (no tonapi): MOOLA/TON reserves, LP total
+ * supply, and the USD price of one LP token. Cached 60s. This is what powers
+ * both the add-liquidity quote and valuing an existing LP position, so neither
+ * depends on the rate-limited tonapi endpoints.
+ */
 async function poolReserves(): Promise<Reserves | null> {
   if (!env.MOOLA_LP) return null;
   if (poolCache && Date.now() - poolCache.at < POOL_TTL_MS) return poolCache.data;
   try {
-    const [poolRes, lpSupply] = await Promise.all([
-      fetch(`https://api.ston.fi/v1/pools/${encodeURIComponent(env.MOOLA_LP)}`, {
-        headers: { accept: 'application/json' },
-        cache: 'no-store',
-      }),
-      jettonTotalSupply(env.MOOLA_LP),
-    ]);
-    // Reserves (from STON.fi) are all the add-liquidity quote needs. lpSupply
-    // (from tonapi) is only used to value an existing position and may be 0 when
-    // tonapi throttles — don't let that block pricing the pool.
+    const poolRes = await fetch(`https://api.ston.fi/v1/pools/${encodeURIComponent(env.MOOLA_LP)}`, {
+      headers: { accept: 'application/json' },
+      cache: 'no-store',
+    });
     if (!poolRes.ok) return null;
     const body = (await poolRes.json()) as {
-      pool?: { token0_address?: string; reserve0?: string; reserve1?: string };
+      pool?: {
+        token0_address?: string;
+        reserve0?: string;
+        reserve1?: string;
+        lp_total_supply?: string;
+        lp_price_usd?: string;
+      };
     };
     const p = body.pool;
     if (!p) return null;
-    // Reserves are in base units (both MOOLA and pTON use 9 decimals).
+    // Reserves + LP supply are in base units (9 decimals).
     const r0 = Number(p.reserve0 ?? 0) / 1e9;
     const r1 = Number(p.reserve1 ?? 0) / 1e9;
     const moola = norm(env.MOOLA_JETTON);
@@ -58,7 +62,8 @@ async function poolReserves(): Promise<Reserves | null> {
     const data: Reserves = {
       moolaReserve: isMoola0 ? r0 : r1,
       tonReserve: isMoola0 ? r1 : r0,
-      lpSupply,
+      lpSupply: Number(p.lp_total_supply ?? 0) / 1e9,
+      lpPriceUsd: Number(p.lp_price_usd ?? 0),
     };
     if (!(data.moolaReserve > 0) || !(data.tonReserve > 0)) return null;
     poolCache = { at: Date.now(), data };
@@ -66,17 +71,6 @@ async function poolReserves(): Promise<Reserves | null> {
   } catch {
     return null;
   }
-}
-
-type PoolInfo = { tvlUsd: number; lpSupply: number };
-
-/** Pool TVL (USD) and LP total supply. */
-async function poolInfo(): Promise<PoolInfo | null> {
-  const [res, stats] = await Promise.all([poolReserves(), moolaMarketStats().catch(() => null)]);
-  if (!res || !stats || !(stats.moolaPriceUsd > 0)) return null;
-  const tvlUsd = res.moolaReserve * stats.moolaPriceUsd + res.tonReserve * (stats.tonUsd || 0);
-  if (!(tvlUsd > 0)) return null;
-  return { tvlUsd, lpSupply: res.lpSupply };
 }
 
 export type LpAddQuote = {
@@ -121,10 +115,13 @@ export async function lpAddQuote(wallet: string, ton: number): Promise<LpAddQuot
 /** USD value of the LP position held by `wallet`. 0 if none / unconfigured. */
 export async function lpValueUsd(wallet: string): Promise<number> {
   if (!env.MOOLA_LP || !wallet) return 0;
-  const [pool, userLp] = await Promise.all([poolInfo(), jettonBalanceOf(wallet, env.MOOLA_LP)]);
-  if (!pool || !(pool.lpSupply > 0) || !(userLp > 0)) return 0;
-  const share = userLp / pool.lpSupply;
-  return Math.max(0, share * pool.tvlUsd);
+  const [pool, userLp] = await Promise.all([poolReserves(), jettonBalanceOf(wallet, env.MOOLA_LP)]);
+  if (!pool || !(userLp > 0)) return 0;
+  // STON.fi gives a USD price per LP token — most reliable. Fall back to the
+  // pool share × reserve valuation if that field is missing.
+  if (pool.lpPriceUsd > 0) return userLp * pool.lpPriceUsd;
+  if (pool.lpSupply > 0) return 0; // no lp price available; avoid guessing
+  return 0;
 }
 
 export function lpRewardsEnabled(): boolean {

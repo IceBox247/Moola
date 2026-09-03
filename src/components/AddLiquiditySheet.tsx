@@ -47,15 +47,27 @@ export function AddLiquiditySheet({ open, onClose, rate }: { open: boolean; onCl
     const id = ++seq.current;
     setLoading(true);
     setErr(null);
-    const t = setTimeout(() => {
+    // Auto-retry a couple of times: the first pool-price fetch can transiently
+    // fail, and we don't want the user to have to nudge the amount to recover.
+    const attempt = (n: number) => {
       api<Quote>('lp/quote', { ton: amt, wallet: address })
         .then((q) => {
           if (id !== seq.current) return;
           setQuote(q);
+          setErr(null);
+          setLoading(false);
         })
-        .catch((e) => id === seq.current && setErr((e as Error).message))
-        .finally(() => id === seq.current && setLoading(false));
-    }, 450);
+        .catch((e) => {
+          if (id !== seq.current) return;
+          if (n < 3) {
+            setTimeout(() => attempt(n + 1), 900);
+          } else {
+            setErr((e as Error).message);
+            setLoading(false);
+          }
+        });
+    };
+    const t = setTimeout(() => attempt(1), 450);
     return () => clearTimeout(t);
   }, [ton, address, open]);
 
