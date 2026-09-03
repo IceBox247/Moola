@@ -173,7 +173,7 @@ export async function POST(req: NextRequest) {
           chat_id: supChat,
           parse_mode: 'HTML',
           text:
-            '✍️ <b>Describe your issue in one message.</b>\n\nInclude what happened (e.g. withdrawal amount, time). Your next message goes straight to our support team and we’ll reply here.',
+            '✍️ <b>Describe your issue in one message.</b>\n\nInclude what happened (e.g. withdrawal amount, time) — and you can <b>attach a screenshot</b>. Your next message goes straight to our support team and we’ll reply here.',
         });
       } else if (SUPPORT_ANSWERS[topic]) {
         await tg('sendMessage', {
@@ -277,30 +277,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // If the user armed "Message a human", forward this one message to admin.
-    if (text.trim() && !text.startsWith('/')) {
+    // If the user armed "Message a human", forward this one message (text and/or
+    // a screenshot) to admin as a ticket.
+    const photo = Array.isArray(msg.photo) && msg.photo.length ? msg.photo[msg.photo.length - 1] : null;
+    const body = (text.trim() || msg.caption || '').trim();
+    if ((body || photo) && !text.startsWith('/')) {
       const { rows } = await sql`SELECT support_until FROM users WHERE id = ${userId} LIMIT 1;`;
       const until = rows[0]?.support_until != null ? Number(rows[0].support_until) : 0;
       if (until > Date.now()) {
         // Translate the ticket to English (best-effort) and remember the user's
         // language so replies can be auto-translated back to it.
-        const tr = await translateText(text, 'en');
+        const tr = body ? await translateText(body, 'en') : null;
         const lang = tr?.src && tr.src !== 'en' ? tr.src : null;
         await sql`UPDATE users SET support_until = NULL, support_lang = ${lang} WHERE id = ${userId};`;
         if (adminChat) {
           const who = from.username ? `@${from.username}` : from.first_name || userId;
-          const translated =
-            tr && lang
-              ? `🌐 <b>EN:</b> ${escapeHtml(tr.text)}\n\n<i>Original (${escapeHtml(lang)}):</i> ${escapeHtml(text)}`
-              : escapeHtml(text);
-          await tg('sendMessage', {
-            chat_id: adminChat,
-            parse_mode: 'HTML',
-            disable_web_page_preview: true,
-            text:
-              `🆘 <b>Support ticket</b>\n\nFrom: <b>${escapeHtml(who)}</b> (<code>${userId}</code>)\n\n` +
-              `${translated}\n\n<i>Reply with</i> <code>/reply ${userId} your message</code>`,
-          });
+          const msgPart = !body
+            ? '<i>(screenshot only)</i>'
+            : tr && lang
+              ? `🌐 <b>EN:</b> ${escapeHtml(tr.text)}\n\n<i>Original (${escapeHtml(lang)}):</i> ${escapeHtml(body)}`
+              : escapeHtml(body);
+          const caption =
+            `🆘 <b>Support ticket</b>\n\nFrom: <b>${escapeHtml(who)}</b> (<code>${userId}</code>)\n\n` +
+            `${msgPart}\n\n<i>Reply with</i> <code>/reply ${userId} your message</code>`;
+          if (photo) {
+            await tg('sendPhoto', { chat_id: adminChat, photo: photo.file_id, caption, parse_mode: 'HTML' });
+          } else {
+            await tg('sendMessage', { chat_id: adminChat, parse_mode: 'HTML', disable_web_page_preview: true, text: caption });
+          }
         }
         await tg('sendMessage', {
           chat_id: msg.chat.id,

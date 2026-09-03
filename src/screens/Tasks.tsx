@@ -613,31 +613,43 @@ function AdOverlay({ type, seconds }: { type: null | 'watch' | 'verify' | 'watch
 function BumperTask({ done }: { done: boolean }) {
   const { setUser, toast } = useStore();
   const [busy, setBusy] = useState(false);
+  const [armed, setArmed] = useState(false);
+
+  async function credit() {
+    setBusy(true);
+    try {
+      const res = await api<{ user?: PublicUser; credited?: boolean; needsChannel?: boolean; channelUrl?: string }>(
+        'tasks/social',
+        { taskId: 'join_dollarbumper' }
+      );
+      if (channelGated(res)) {
+        toast('📣 Join our Telegram channel to earn', 'bad');
+        return;
+      }
+      if (res.user) setUser(res.user);
+      notify('success');
+      if (res.credited) toast('+15 MOOLA', 'good');
+    } catch (e) {
+      toast((e as Error).message, 'bad');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function go() {
     if (done || busy) return;
     haptic('medium');
-    openLink(socialLink('dollar_bumper'));
-    setBusy(true);
-    setTimeout(async () => {
-      try {
-        const res = await api<{ user?: PublicUser; credited?: boolean; needsChannel?: boolean; channelUrl?: string }>(
-          'tasks/social',
-          { taskId: 'join_dollarbumper' }
-        );
-        if (channelGated(res)) {
-          toast('📣 Join our Telegram channel to earn', 'bad');
-          return;
-        }
-        if (res.user) setUser(res.user);
-        notify('success');
-        if (res.credited) toast('+15 MOOLA', 'good');
-      } catch (e) {
-        toast((e as Error).message, 'bad');
-      } finally {
+    if (!armed) {
+      openLink(socialLink('dollar_bumper'));
+      setBusy(true);
+      setTimeout(() => {
         setBusy(false);
-      }
-    }, 1500);
+        setArmed(true);
+        toast('⏳ Not completed yet — start the bot, then tap Claim', 'bad');
+      }, 3000);
+      return;
+    }
+    await credit();
   }
 
   return (
@@ -658,8 +670,12 @@ function BumperTask({ done }: { done: boolean }) {
         {done ? (
           <span className="chip bg-moo-500/15 text-moo-300">✓ Done</span>
         ) : (
-          <button onClick={go} disabled={busy} className="btn-gold px-7 py-2.5 font-black">
-            {busy ? '…' : 'Join & Earn'}
+          <button
+            onClick={go}
+            disabled={busy}
+            className={`px-7 py-2.5 font-black ${armed ? 'btn-primary' : 'btn-gold'}`}
+          >
+            {busy ? '…' : armed ? 'Claim +15' : 'Join & Earn'}
           </button>
         )}
       </div>
@@ -676,31 +692,54 @@ function SocialTask({
 }) {
   const { setUser, toast } = useStore();
   const [busy, setBusy] = useState(false);
+  // Two-click flow for tasks we can't verify by API: the FIRST tap opens the
+  // link and "checks" (nudging the user to actually do it); the SECOND tap
+  // credits. Channel tasks are server-verified, so they credit on one tap.
+  const [armed, setArmed] = useState(false);
+  const twoClick = task.kind !== 'channel';
+
+  async function credit() {
+    setBusy(true);
+    try {
+      const res = await api<{ user?: PublicUser; credited?: boolean; needsChannel?: boolean; channelUrl?: string }>(
+        'tasks/social',
+        { taskId: task.id }
+      );
+      if (channelGated(res)) {
+        toast('📣 Join our Telegram channel to earn', 'bad');
+        return;
+      }
+      if (res.user) setUser(res.user);
+      notify('success');
+      if (res.credited) toast(`+${task.reward} MOOLA`, 'good');
+    } catch (e) {
+      toast((e as Error).message, 'bad');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function go() {
     if (done || busy) return;
     haptic('medium');
-    openLink(socialLink(task.kind));
-    setBusy(true);
-    setTimeout(async () => {
-      try {
-        const res = await api<{ user?: PublicUser; credited?: boolean; needsChannel?: boolean; channelUrl?: string }>(
-          'tasks/social',
-          { taskId: task.id }
-        );
-        if (channelGated(res)) {
-          toast('📣 Join our Telegram channel to earn', 'bad');
-          return;
-        }
-        if (res.user) setUser(res.user);
-        notify('success');
-        if (res.credited) toast(`+${task.reward} MOOLA`, 'good');
-      } catch (e) {
-        toast((e as Error).message, 'bad');
-      } finally {
+
+    // First tap on an unverifiable task: open it, "check", then ask them to tap
+    // again once it's actually done.
+    if (twoClick && !armed) {
+      openLink(socialLink(task.kind));
+      setBusy(true);
+      setTimeout(() => {
         setBusy(false);
-      }
-    }, 1500);
+        setArmed(true);
+        toast('⏳ Task not completed yet — finish it, then tap Claim', 'bad');
+      }, 3000);
+      return;
+    }
+
+    // Channel task (single tap) opens the link first; second tap on others just
+    // credits (they already opened it).
+    if (!twoClick) openLink(socialLink(task.kind));
+    setTimeout(credit, twoClick ? 0 : 1500);
   }
 
   return (
@@ -713,8 +752,12 @@ function SocialTask({
       {done ? (
         <span className="chip bg-moo-500/15 text-moo-300">✓ Done</span>
       ) : (
-        <button onClick={go} disabled={busy} className="btn-gold px-5 py-2.5">
-          {busy ? '…' : 'Go'}
+        <button
+          onClick={go}
+          disabled={busy}
+          className={`px-5 py-2.5 ${armed ? 'btn-primary' : 'btn-gold'}`}
+        >
+          {busy ? '…' : armed ? 'Claim' : 'Go'}
         </button>
       )}
     </div>
