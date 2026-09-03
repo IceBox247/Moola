@@ -19,7 +19,22 @@ export const links = {
   fbPost2: 'https://www.facebook.com/share/r/1ESU6sbnCD/',
   fbPost3: 'https://www.facebook.com/share/p/1BdbW1nSro/',
   youtube: process.env.NEXT_PUBLIC_YOUTUBE_URL || 'https://youtube.com/',
+  // Dedicated support bot (create via @BotFather). Leave unset to hide the
+  // "Contact Support" button and show FAQ only.
+  support: process.env.NEXT_PUBLIC_SUPPORT_URL || '',
 };
+
+/**
+ * Deep link to the support bot, carrying the user's Moola id as the /start
+ * payload so a mod can see who's writing (e.g. …?start=uid12345). Falls back to
+ * the raw link if no id. Returns '' when no support bot is configured.
+ */
+export function supportLink(userId?: string | number): string {
+  if (!links.support) return '';
+  if (!userId) return links.support;
+  const sep = links.support.includes('?') ? '&' : '?';
+  return `${links.support}${sep}start=uid${userId}`;
+}
 
 export const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME || 'MoolaMiningBot';
 

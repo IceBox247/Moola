@@ -10,6 +10,7 @@ import { fmt, timeAgo } from '@/lib/format';
 import { haptic, notify } from '@/lib/telegram';
 import { audio, playSfx, unlockAudio, type AudioPrefs } from '@/lib/audio';
 import { VerifyModal } from '@/components/VerifyModal';
+import { HelpSheet } from '@/components/HelpSheet';
 import { fmtCompact } from '@/lib/format';
 import type { HistoryItem, PublicUser } from '@/lib/types';
 
@@ -85,6 +86,7 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
   const [address, setAddress] = useState<string>(u.wallet ?? '');
   const [busy, setBusy] = useState(false);
   const [verifyOpen, setVerifyOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [history, setHistory] = useState<HistoryItem[] | null>(null);
   const [withdrawals, setWithdrawals] = useState<WithdrawalItem[] | null>(null);
   const [priceUsd, setPriceUsd] = useState<number>(u.livePriceUsd || u.moolaPriceUsd);
@@ -329,8 +331,20 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
                   <div className="mt-0.5 text-[11px] text-white/40">
                     to {w.address.slice(0, 6)}…{w.address.slice(-4)} · {timeAgo(w.createdAt)}
                   </div>
-                  {w.status === 'failed' && w.error && (
-                    <div className="mt-1 break-words text-[11px] text-red-300/80">{w.error}</div>
+                  {(w.status === 'pending' || w.status === 'processing') && (
+                    <div className="mt-1 text-[11px] text-white/40">
+                      Sending on-chain — this can take a few minutes. Auto-refunded if it fails.
+                    </div>
+                  )}
+                  {w.status === 'review' && (
+                    <div className="mt-1 text-[11px] text-gold-300/70">
+                      Being checked on-chain — no action needed. It’ll settle as paid or refund automatically.
+                    </div>
+                  )}
+                  {w.status === 'failed' && (
+                    <div className="mt-1 break-words text-[11px] text-red-300/80">
+                      {w.error || 'Transfer failed — your MOOLA was refunded to your balance. You can withdraw again.'}
+                    </div>
                   )}
                 </div>
               );
@@ -374,11 +388,25 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
         )}
       </div>
 
+      {/* Help & Support */}
+      <button
+        onClick={() => setHelpOpen(true)}
+        className="card flex w-full items-center gap-3 p-4 text-left"
+      >
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-moo-500/12 text-xl">🐮</div>
+        <div className="flex-1">
+          <div className="text-sm font-bold">Help &amp; Support</div>
+          <div className="text-[11px] text-white/45">Withdrawals, holdings, mining speed &amp; more</div>
+        </div>
+        <span className="text-white/30">›</span>
+      </button>
+
       <button onClick={goMine} className="btn-ghost w-full py-3 text-sm">
         ← Back to mining
       </button>
 
       <VerifyModal open={verifyOpen} onClose={() => setVerifyOpen(false)} />
+      <HelpSheet open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 }
