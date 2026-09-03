@@ -525,6 +525,8 @@ export type VideoTaskState = {
   slotsLeft: number;
   slotsTotal: number;
   reward: number;
+  lockedToday: boolean; // hit the daily rejection cap — locked until tomorrow
+  attemptsLeftToday: number;
 };
 
 let approvedVideoCache: { at: number; n: number } | null = null;
@@ -540,16 +542,20 @@ async function approvedVideoCount(fresh = false): Promise<number> {
 export async function getVideoTaskState(userId: string): Promise<VideoTaskState> {
   await ensureSchema();
   const [{ rows }, approved] = await Promise.all([
-    sql`SELECT url, status FROM video_tasks WHERE user_id = ${userId} LIMIT 1;`,
+    sql`SELECT url, status, reject_day, reject_count FROM video_tasks WHERE user_id = ${userId} LIMIT 1;`,
     approvedVideoCount(),
   ]);
   const row = rows[0];
+  const max = game.videoTask.maxRejectsPerDay;
+  const todayRejects = row && row.reject_day === dayKey() ? Number(row.reject_count ?? 0) : 0;
   return {
     status: row ? (String(row.status) as VideoTaskState['status']) : 'none',
     url: row ? String(row.url) : null,
     slotsLeft: Math.max(0, game.videoTask.slots - approved),
     slotsTotal: game.videoTask.slots,
     reward: game.videoTask.reward,
+    lockedToday: todayRejects >= max,
+    attemptsLeftToday: Math.max(0, max - todayRejects),
   };
 }
 
@@ -565,10 +571,20 @@ export async function submitVideoTask(userId: string, url: string): Promise<Vide
   const approved = await approvedVideoCount();
   if (approved >= game.videoTask.slots) return { ok: false, status: 'none', reason: 'All slots are filled' };
 
-  const { rows } = await sql`SELECT status FROM video_tasks WHERE user_id = ${userId} LIMIT 1;`;
+  const { rows } = await sql`SELECT status, reject_day, reject_count FROM video_tasks WHERE user_id = ${userId} LIMIT 1;`;
   const current = rows[0]?.status as string | undefined;
   if (current === 'pending') return { ok: false, status: 'pending', reason: 'Your video is already awaiting review' };
   if (current === 'approved') return { ok: false, status: 'approved', reason: 'You already earned this reward' };
+
+  // Daily rejection cap: after N rejects today, no resubmission until tomorrow.
+  const todayRejects = rows[0]?.reject_day === dayKey() ? Number(rows[0].reject_count ?? 0) : 0;
+  if (todayRejects >= game.videoTask.maxRejectsPerDay) {
+    return {
+      ok: false,
+      status: 'rejected',
+      reason: `You've used your ${game.videoTask.maxRejectsPerDay} attempts for today. Try again tomorrow.`,
+    };
+  }
 
   const now = nowMs();
   await sql`
@@ -620,8 +636,12 @@ export async function listVideoSubmissions(limit = 300) {
 
 export async function rejectVideoTask(userId: string): Promise<void> {
   await ensureSchema();
+  const today = dayKey();
   await sql`
-    UPDATE video_tasks SET status = 'rejected', reviewed_at = ${nowMs()}
+    UPDATE video_tasks
+    SET status = 'rejected', reviewed_at = ${nowMs()},
+        reject_count = CASE WHEN reject_day = ${today} THEN reject_count + 1 ELSE 1 END,
+        reject_day = ${today}
     WHERE user_id = ${userId} AND status <> 'approved';
   `;
 }

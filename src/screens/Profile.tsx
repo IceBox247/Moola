@@ -7,7 +7,7 @@ import { useStore } from '@/lib/store';
 import { api } from '@/lib/client';
 import { AnimatedNumber, Skeleton } from '@/components/ui';
 import { fmt, timeAgo } from '@/lib/format';
-import { haptic, notify } from '@/lib/telegram';
+import { haptic, notify, openLink } from '@/lib/telegram';
 import { audio, playSfx, unlockAudio, type AudioPrefs } from '@/lib/audio';
 import { VerifyModal } from '@/components/VerifyModal';
 import { HelpSheet } from '@/components/HelpSheet';
@@ -331,6 +331,17 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
                   <div className="mt-0.5 text-[11px] text-white/40">
                     to {w.address.slice(0, 6)}…{w.address.slice(-4)} · {timeAgo(w.createdAt)}
                   </div>
+                  {w.status === 'paid' && (
+                    <button
+                      onClick={() => {
+                        haptic('light');
+                        openLink(`https://tonviewer.com/${w.address}`);
+                      }}
+                      className="mt-1 text-[11px] font-semibold text-sky-300/90"
+                    >
+                      🔎 View on Tonviewer ↗
+                    </button>
+                  )}
                   {(w.status === 'pending' || w.status === 'processing') && (
                     <div className="mt-1 text-[11px] text-white/40">
                       Sending on-chain — this can take a few minutes. Auto-refunded if it fails.

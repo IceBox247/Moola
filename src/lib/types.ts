@@ -83,6 +83,8 @@ export type PublicUser = {
     slotsLeft: number;
     slotsTotal: number;
     reward: number;
+    lockedToday: boolean;
+    attemptsLeftToday: number;
   } | null;
 
   mining: {

@@ -165,7 +165,7 @@ function VideoBounty() {
 
   const status = vt.status;
   const full = vt.slotsLeft <= 0;
-  const canSubmit = (status === 'none' || status === 'rejected') && !full;
+  const canSubmit = (status === 'none' || status === 'rejected') && !full && !vt.lockedToday;
 
   async function submit() {
     const link = url.trim();
@@ -232,11 +232,20 @@ function VideoBounty() {
         </div>
       )}
 
+      {vt.lockedToday && status !== 'approved' && status !== 'pending' && (
+        <div className="mt-3 rounded-2xl border border-rose-400/30 bg-rose-500/[0.08] px-3 py-2 text-sm font-semibold text-rose-200">
+          ❌ You’ve used your attempts for today. Come back tomorrow to try again. 🐮
+        </div>
+      )}
+
       {canSubmit && (
         <div className="mt-3 space-y-2">
           {status === 'rejected' && (
             <div className="text-xs font-semibold text-rose-300/90">
-              ❌ Not approved last time — submit a new video link.
+              ❌ Not approved last time — submit a new video link.{' '}
+              {vt.attemptsLeftToday > 0 && (
+                <span className="text-white/50">({vt.attemptsLeftToday} attempt{vt.attemptsLeftToday === 1 ? '' : 's'} left today)</span>
+              )}
             </div>
           )}
           <input
