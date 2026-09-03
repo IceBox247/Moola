@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { authed, unauthorized, badRequest, userResponse, channelBlock } from '@/lib/api';
+import { authed, unauthorized, badRequest, userResponse, channelBlock, json } from '@/lib/api';
 import { sql, credit, nowMs } from '@/lib/db';
 import { game } from '@/lib/config';
 import { onUserEarned } from '@/lib/referrals';
@@ -16,6 +16,16 @@ export async function POST(req: NextRequest) {
   const { taskId } = await req.json().catch(() => ({}));
   const task = game.social.find((s) => s.id === taskId);
   if (!task) return badRequest('unknown task');
+
+  // A channel-join task pays only after Telegram CONFIRMS membership. Stricter
+  // than the general gate: an 'unknown' (bot not admin / API hiccup) does not
+  // credit, so nobody is paid without a verified join.
+  if (task.kind === 'channel') {
+    const { channelGateEnabled, channelMembership } = await import('@/lib/telegramBot');
+    if (channelGateEnabled() && (await channelMembership(ctx.user.id)) !== 'member') {
+      return json({ needsChannel: true, channelUrl: process.env.NEXT_PUBLIC_CHANNEL_URL || '' });
+    }
+  }
 
   // Insert once; ON CONFLICT prevents double reward.
   const { rowCount } = await sql`

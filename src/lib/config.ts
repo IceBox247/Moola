@@ -117,6 +117,9 @@ export const game = {
     { id: 'x_vote', title: 'Go Vote on X', reward: 5, kind: 'x_vote' },
     { id: 'boost_channel', title: 'Boost Moola Channel', reward: 5, kind: 'boost' },
     { id: 'join_dollarbumper', title: 'Join DollarBumper Bot', reward: 15, kind: 'dollar_bumper' },
+    // Paid, membership-verified channel join (separate id from the reward-0
+    // onboarding step so already-onboarded members can also claim it once).
+    { id: 'channel_join', title: 'Join Official Moola Channel', reward: 10, kind: 'channel' },
     // New Moola YouTube video — featured on the main Tasks page.
     { id: 'yt_comment', title: 'Comment on our new YouTube video', reward: 5, kind: 'yt_video' },
     { id: 'yt_like', title: 'Like our new YouTube video', reward: 5, kind: 'yt_video' },
