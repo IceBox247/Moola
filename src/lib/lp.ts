@@ -106,8 +106,11 @@ export async function lpAddQuote(wallet: string, ton: number): Promise<LpAddQuot
     moola,
     tonBalance,
     moolaBalance,
-    enoughTon: tonBalance >= ton + LP_GAS_TON,
-    enoughMoola: moolaBalance >= moola,
+    // Balances come from tonapi, which rate-limits Vercel and then returns 0.
+    // A 0/unknown read must NOT block the add (STON.fi enforces the real
+    // requirement) — only a positive-but-too-low reading counts as "not enough".
+    enoughTon: !(tonBalance > 0) || tonBalance >= ton + LP_GAS_TON,
+    enoughMoola: !(moolaBalance > 0) || moolaBalance >= moola,
     addUrl,
   };
 }

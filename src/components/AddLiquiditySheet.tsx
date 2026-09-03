@@ -29,7 +29,7 @@ type Quote = {
  * STON.fi to confirm. Their LP is auto-detected afterward and starts earning.
  */
 export function AddLiquiditySheet({ open, onClose, rate }: { open: boolean; onClose: () => void; rate: number }) {
-  const { toast } = useStore();
+  const { user, toast } = useStore();
   const address = useTonAddress();
   const [ton, setTon] = useState('5');
   const [quote, setQuote] = useState<Quote | null>(null);
@@ -134,22 +134,32 @@ export function AddLiquiditySheet({ open, onClose, rate }: { open: boolean; onCl
                       {fmt(Number(ton) || 0, 2)} TON + {quote ? fmtCompact(quote.moola) : '…'} MOOLA
                     </span>
                   </div>
-                  {quote && (
-                    <div className="mt-2 space-y-1 text-xs">
-                      <div className={`flex justify-between ${quote.enoughTon ? 'text-white/45' : 'text-rose-300'}`}>
-                        <span>Wallet TON</span>
-                        <span>
-                          {fmt(quote.tonBalance, 2)} {quote.enoughTon ? '✓' : '— not enough'}
-                        </span>
-                      </div>
-                      <div className={`flex justify-between ${quote.enoughMoola ? 'text-white/45' : 'text-rose-300'}`}>
-                        <span>Wallet MOOLA</span>
-                        <span>
-                          {fmtCompact(quote.moolaBalance)} {quote.enoughMoola ? '✓' : '— not enough'}
-                        </span>
-                      </div>
-                    </div>
-                  )}
+                  {quote &&
+                    (() => {
+                      // Fall back to the cached on-chain MOOLA when the live read
+                      // came back 0 (tonapi throttled). Show "—" for unknown.
+                      const moolaBal = quote.moolaBalance > 0 ? quote.moolaBalance : user?.moolaOnchain ?? 0;
+                      return (
+                        <div className="mt-2 space-y-1 text-xs">
+                          <div
+                            className={`flex justify-between ${quote.enoughTon ? 'text-white/45' : 'text-rose-300'}`}
+                          >
+                            <span>Wallet TON</span>
+                            <span>
+                              {quote.tonBalance > 0 ? fmt(quote.tonBalance, 2) : '—'} {quote.enoughTon ? '' : '· low'}
+                            </span>
+                          </div>
+                          <div
+                            className={`flex justify-between ${quote.enoughMoola ? 'text-white/45' : 'text-rose-300'}`}
+                          >
+                            <span>Wallet MOOLA</span>
+                            <span>
+                              {moolaBal > 0 ? fmtCompact(moolaBal) : '—'} {quote.enoughMoola ? '' : '· low'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                 </div>
 
                 {err && <div className="mt-2 text-center text-xs text-rose-300">{err}</div>}
