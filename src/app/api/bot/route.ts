@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { upsertUser, sql, approveVideoTask, rejectVideoTask } from '@/lib/db';
 import { sendBotMessage } from '@/lib/telegramBot';
 import { links } from '@/lib/links';
+import { translateText } from '@/lib/translate';
 
 // ── Support: self-service FAQ answered inside the bot ────────────────────────
 // Deflects the common questions with canned answers; only "Message a human"
@@ -253,8 +254,19 @@ export async function POST(req: NextRequest) {
       if (!m) {
         await tg('sendMessage', { chat_id: msg.chat.id, text: 'Usage: /reply <userId> <message>' });
       } else {
-        const ok = await sendBotMessage(m[1], `💬 <b>Moola Support</b>\n\n${escapeHtml(m[2])}`);
-        await tg('sendMessage', { chat_id: msg.chat.id, text: ok ? `✅ Sent to ${m[1]}` : `⚠️ Could not reach ${m[1]}` });
+        // Auto-translate your reply into the user's language (from their ticket).
+        const { rows } = await sql`SELECT support_lang FROM users WHERE id = ${m[1]} LIMIT 1;`;
+        const lang = (rows[0]?.support_lang as string) || '';
+        let body = escapeHtml(m[2]);
+        if (lang && lang !== 'en') {
+          const tr = await translateText(m[2], lang);
+          if (tr) body = `${escapeHtml(tr.text)}\n\n<i>(EN: ${escapeHtml(m[2])})</i>`;
+        }
+        const ok = await sendBotMessage(m[1], `💬 <b>Moola Support</b>\n\n${body}`);
+        await tg('sendMessage', {
+          chat_id: msg.chat.id,
+          text: ok ? `✅ Sent to ${m[1]}${lang && lang !== 'en' ? ` (translated → ${lang})` : ''}` : `⚠️ Could not reach ${m[1]}`,
+        });
       }
       return NextResponse.json({ ok: true });
     }
@@ -270,16 +282,24 @@ export async function POST(req: NextRequest) {
       const { rows } = await sql`SELECT support_until FROM users WHERE id = ${userId} LIMIT 1;`;
       const until = rows[0]?.support_until != null ? Number(rows[0].support_until) : 0;
       if (until > Date.now()) {
-        await sql`UPDATE users SET support_until = NULL WHERE id = ${userId};`;
+        // Translate the ticket to English (best-effort) and remember the user's
+        // language so replies can be auto-translated back to it.
+        const tr = await translateText(text, 'en');
+        const lang = tr?.src && tr.src !== 'en' ? tr.src : null;
+        await sql`UPDATE users SET support_until = NULL, support_lang = ${lang} WHERE id = ${userId};`;
         if (adminChat) {
           const who = from.username ? `@${from.username}` : from.first_name || userId;
+          const translated =
+            tr && lang
+              ? `🌐 <b>EN:</b> ${escapeHtml(tr.text)}\n\n<i>Original (${escapeHtml(lang)}):</i> ${escapeHtml(text)}`
+              : escapeHtml(text);
           await tg('sendMessage', {
             chat_id: adminChat,
             parse_mode: 'HTML',
             disable_web_page_preview: true,
             text:
               `🆘 <b>Support ticket</b>\n\nFrom: <b>${escapeHtml(who)}</b> (<code>${userId}</code>)\n\n` +
-              `${escapeHtml(text)}\n\n<i>Reply with</i> <code>/reply ${userId} your message</code>`,
+              `${translated}\n\n<i>Reply with</i> <code>/reply ${userId} your message</code>`,
           });
         }
         await tg('sendMessage', {

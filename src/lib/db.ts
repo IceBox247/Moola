@@ -147,6 +147,9 @@ async function initSchema(): Promise<void> {
   // Support mode: when set (future ms), the user's next bot message is forwarded
   // to the admin chat as a support ticket, then the flag is cleared.
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS support_until BIGINT;`;
+  // Detected language of the user's last support ticket, so admin replies can be
+  // auto-translated back into it.
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS support_lang TEXT;`;
   await sql`
     CREATE TABLE IF NOT EXISTS withdrawals (
       id         BIGSERIAL PRIMARY KEY,
