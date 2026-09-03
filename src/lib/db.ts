@@ -75,6 +75,8 @@ export type UserRow = {
   verify_status: string;
   support_until: number | null;
   premium_until: number | null;
+  free_wd_day: string | null;
+  free_wd_count: number;
   last_free_withdraw_at: number | null;
   lp_usd: number;
   lp_settled_at: number | null;
@@ -186,6 +188,9 @@ async function initSchema(): Promise<void> {
   await sql`ALTER TABLE video_tasks ADD COLUMN IF NOT EXISTS reject_count INTEGER NOT NULL DEFAULT 0;`;
   // Premium Moola: expiry (ms). NULL = not premium; a far-future value = lifetime.
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_until BIGINT;`;
+  // Daily free-withdrawal counter (premium users get several free per day).
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS free_wd_day TEXT;`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS free_wd_count INTEGER NOT NULL DEFAULT 0;`;
 
   // Withdrawal fee: track when a user last took their free withdrawal, and log
   // consumed on-chain fee payments so one payment can't unlock two withdrawals.
@@ -290,6 +295,8 @@ function rowToUser(r: Record<string, unknown>): UserRow {
     verify_status: (r.verify_status as string) ?? 'none',
     support_until: r.support_until != null ? Number(r.support_until) : null,
     premium_until: r.premium_until != null ? Number(r.premium_until) : null,
+    free_wd_day: (r.free_wd_day as string) ?? null,
+    free_wd_count: r.free_wd_count != null ? Number(r.free_wd_count) : 0,
     last_free_withdraw_at: r.last_free_withdraw_at != null ? Number(r.last_free_withdraw_at) : null,
     lp_usd: r.lp_usd != null ? Number(r.lp_usd) : 0,
     lp_settled_at: r.lp_settled_at != null ? Number(r.lp_settled_at) : null,
@@ -646,17 +653,62 @@ export async function rejectVideoTask(userId: string): Promise<void> {
   `;
 }
 
+// ── Premium ──────────────────────────────────────────────────────────────────
+
+/** True while the user has an active premium subscription (or lifetime). */
+export function isPremium(u: UserRow, at = nowMs()): boolean {
+  return u.premium_until != null && u.premium_until > at;
+}
+
+// Lifetime premium is stored as a fixed far-future expiry (year ~2255).
+const LIFETIME_UNTIL = 9_000_000_000_000;
+
+/**
+ * Grant premium. 'month' extends from the later of now / current expiry by
+ * monthDays; 'lifetime' sets the far-future sentinel. Returns the new expiry.
+ */
+export async function setPremium(userId: string, tier: 'month' | 'lifetime'): Promise<number> {
+  const now = nowMs();
+  let until: number;
+  if (tier === 'lifetime') {
+    until = LIFETIME_UNTIL;
+  } else {
+    const cur = (await getUser(userId))?.premium_until ?? 0;
+    until = Math.max(now, cur) + game.premium.monthDays * 86_400_000;
+  }
+  await sql`UPDATE users SET premium_until = ${until} WHERE id = ${userId};`;
+  return until;
+}
+
 // ── Withdrawal fee ───────────────────────────────────────────────────────────
 
-/** True if the user's free (no-fee) withdrawal is available right now. */
+/** How many free (no-fee) withdrawals the user gets per day. */
+function freeWithdrawalQuota(u: UserRow, at = nowMs()): number {
+  return isPremium(u, at) ? game.premium.freeWithdrawalsPerDay : 1;
+}
+
+/** True if the user has a free (no-fee) withdrawal available right now. */
 export function freeWithdrawAvailable(u: UserRow, at = nowMs()): boolean {
+  if (isPremium(u, at)) {
+    // Premium: N free per calendar day.
+    const usedToday = u.free_wd_day === dayKey(at) ? u.free_wd_count : 0;
+    return usedToday < freeWithdrawalQuota(u, at);
+  }
+  // Free tier: one free withdrawal per cooldown window.
   const windowMs = game.withdraw.freeCooldownHours * 60 * 60 * 1000;
   return !u.last_free_withdraw_at || at - u.last_free_withdraw_at >= windowMs;
 }
 
-/** Stamp that the user just used their free withdrawal. */
+/** Stamp that the user just used a free withdrawal (both trackers). */
 export async function markFreeWithdrawal(userId: string): Promise<void> {
-  await sql`UPDATE users SET last_free_withdraw_at = ${nowMs()} WHERE id = ${userId};`;
+  const today = dayKey();
+  await sql`
+    UPDATE users
+    SET last_free_withdraw_at = ${nowMs()},
+        free_wd_count = CASE WHEN free_wd_day = ${today} THEN free_wd_count + 1 ELSE 1 END,
+        free_wd_day = ${today}
+    WHERE id = ${userId};
+  `;
 }
 
 /**

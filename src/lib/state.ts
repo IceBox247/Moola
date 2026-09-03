@@ -1,4 +1,16 @@
-import { sql, dayKey, nowMs, getUser, addTx, credit, grantLpReward, normAddr, type UserRow } from './db';
+import {
+  sql,
+  dayKey,
+  nowMs,
+  getUser,
+  addTx,
+  credit,
+  grantLpReward,
+  normAddr,
+  isPremium,
+  freeWithdrawAvailable,
+  type UserRow,
+} from './db';
 import { moolaMarketStats, atfPriceUsd } from './stonfi';
 import { lpValueUsd, lpRewardsEnabled } from './lp';
 import {
@@ -33,11 +45,16 @@ export function heldMoola(u: UserRow): number {
   return Math.max(u.balance, u.moola_onchain);
 }
 
-/** Current per-ms mining rate at the user's live level + NFT + ATF multiplier. */
+/** Premium mining multiplier (2× while premium is active, else 1×). */
+export function premiumMiningMult(u: UserRow, at = nowMs()): number {
+  return isPremium(u, at) ? game.premium.miningMultiplier : 1;
+}
+
+/** Current per-ms mining rate at the user's live level + NFT + ATF + premium. */
 function ratePerMs(u: UserRow): number {
   const level = levelForHoldings(heldMoola(u));
   const mult = u.atf_mult && u.atf_mult > 0 ? u.atf_mult : 1;
-  return dailyYield(level, activeBoost(u), mult) / (24 * 60 * 60 * 1000);
+  return (dailyYield(level, activeBoost(u), mult) * premiumMiningMult(u)) / (24 * 60 * 60 * 1000);
 }
 
 /** MOOLA mined in the current *unsettled* segment (since the last checkpoint). */
@@ -242,7 +259,7 @@ export function serialize(u: UserRow, socialDone: string[] = [], at = nowMs()) {
     nextLevelUsd: round4(requiredUsd(level + 1)),
     toNextLevelUsd: round4(toNextLevel(held) * game.leveling.fixedMoolaPriceUsd),
 
-    dailyYield: dailyYield(level, nftBoost, atfMult),
+    dailyYield: dailyYield(level, nftBoost, atfMult) * premiumMiningMult(u, at),
     hashrate: hashrate(level, atfMult),
     boostPct: nftBoost,
 
@@ -255,12 +272,27 @@ export function serialize(u: UserRow, socialDone: string[] = [], at = nowMs()) {
 
     verified: u.verified,
     verifyStatus: u.verify_status,
-    verifyThreshold: game.withdraw.verifyThreshold,
-    withdrawFree: !u.last_free_withdraw_at || at - u.last_free_withdraw_at >= game.withdraw.freeCooldownHours * 3_600_000,
-    withdrawNextFreeAt: u.last_free_withdraw_at
-      ? u.last_free_withdraw_at + game.withdraw.freeCooldownHours * 3_600_000
-      : null,
+    // Premium raises the no-verification ceiling.
+    verifyThreshold: isPremium(u, at)
+      ? Math.max(game.withdraw.verifyThreshold, game.premium.noKycThreshold)
+      : game.withdraw.verifyThreshold,
+    withdrawFree: freeWithdrawAvailable(u, at),
+    withdrawNextFreeAt: freeWithdrawAvailable(u, at)
+      ? null
+      : isPremium(u, at)
+        ? Date.UTC(new Date(at).getUTCFullYear(), new Date(at).getUTCMonth(), new Date(at).getUTCDate() + 1) // next UTC midnight
+        : (u.last_free_withdraw_at ?? at) + game.withdraw.freeCooldownHours * 3_600_000,
     withdrawFeeUsd: game.withdraw.extraFeeUsd,
+
+    // Premium Moola
+    premiumActive: isPremium(u, at),
+    premiumUntil: u.premium_until && u.premium_until < 8_000_000_000_000 ? u.premium_until : null, // null = lifetime or none
+    premiumLifetime: !!u.premium_until && u.premium_until >= 8_000_000_000_000,
+    premiumMiningMult: game.premium.miningMultiplier,
+    premiumFreePerDay: game.premium.freeWithdrawalsPerDay,
+    premiumNoKyc: game.premium.noKycThreshold,
+    premiumMonthTon: game.premium.monthTon,
+    premiumLifetimeTon: game.premium.lifetimeTon,
 
     // Liquidity rewards (values only; program status is added in userResponse).
     lpUsd: round2(u.lp_usd),
