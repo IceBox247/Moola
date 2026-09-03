@@ -142,6 +142,7 @@ export function TasksScreen() {
         </>
       ) : (
         <div className="space-y-3">
+          <BumperTask done={u.socialDone.includes('join_dollarbumper')} />
           <VideoBounty />
           {SOCIAL.map((s) => (
             <SocialTask key={s.id} task={s} done={u.socialDone.includes(s.id)} />
@@ -604,6 +605,64 @@ function AdOverlay({ type, seconds }: { type: null | 'watch' | 'verify' | 'watch
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+/** Featured partner task — DollarBumper. Styled to stand out from the list. */
+function BumperTask({ done }: { done: boolean }) {
+  const { setUser, toast } = useStore();
+  const [busy, setBusy] = useState(false);
+
+  async function go() {
+    if (done || busy) return;
+    haptic('medium');
+    openLink(socialLink('dollar_bumper'));
+    setBusy(true);
+    setTimeout(async () => {
+      try {
+        const res = await api<{ user?: PublicUser; credited?: boolean; needsChannel?: boolean; channelUrl?: string }>(
+          'tasks/social',
+          { taskId: 'join_dollarbumper' }
+        );
+        if (channelGated(res)) {
+          toast('📣 Join our Telegram channel to earn', 'bad');
+          return;
+        }
+        if (res.user) setUser(res.user);
+        notify('success');
+        if (res.credited) toast('+15 MOOLA', 'good');
+      } catch (e) {
+        toast((e as Error).message, 'bad');
+      } finally {
+        setBusy(false);
+      }
+    }, 1500);
+  }
+
+  return (
+    <div className="relative overflow-hidden rounded-3xl border border-gold-400/40 bg-gradient-to-br from-gold-500/[0.14] via-black/30 to-moo-600/[0.12] p-4 shadow-neon">
+      <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-gold-400/20 blur-2xl" />
+      <div className="relative flex items-center gap-3">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gold-400/15 text-3xl">💵</div>
+        <div className="flex-1">
+          <div className="mb-0.5 inline-flex items-center rounded-full bg-gold-400/20 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-gold-200">
+            ✨ New Partner
+          </div>
+          <div className="font-black leading-tight">Join DollarBumper Bot</div>
+          <div className="text-xs text-white/50">Open the bot, tap Start &amp; earn instantly</div>
+        </div>
+      </div>
+      <div className="relative mt-3 flex items-center justify-between">
+        <div className="text-lg font-black gold-text">+15 MOOLA</div>
+        {done ? (
+          <span className="chip bg-moo-500/15 text-moo-300">✓ Done</span>
+        ) : (
+          <button onClick={go} disabled={busy} className="btn-gold px-7 py-2.5 font-black">
+            {busy ? '…' : 'Join & Earn'}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
