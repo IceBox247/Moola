@@ -107,6 +107,9 @@ export type PublicUser = {
     verifyTotal: number;
     verifyReward: number;
     verifyWaitSeconds: number;
+    watched2: number;
+    watch2Total: number;
+    watch2Reward: number;
     allDone: boolean;
   };
 

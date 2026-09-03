@@ -144,8 +144,8 @@ export async function maybeRescan(u: UserRow, force = false): Promise<UserRow> {
 export async function ensureAdDay(u: UserRow): Promise<UserRow> {
   const today = dayKey();
   if (u.ads_day !== today) {
-    await sql`UPDATE users SET ads_day = ${today}, ads_watched = 0, ads_verified = 0 WHERE id = ${u.id};`;
-    return { ...u, ads_day: today, ads_watched: 0, ads_verified: 0 };
+    await sql`UPDATE users SET ads_day = ${today}, ads_watched = 0, ads_verified = 0, ads_watched2 = 0 WHERE id = ${u.id};`;
+    return { ...u, ads_day: today, ads_watched: 0, ads_verified: 0, ads_watched2: 0 };
   }
   return u;
 }
@@ -196,6 +196,7 @@ export function serialize(u: UserRow, socialDone: string[] = [], at = nowMs()) {
 
   const adsWatched = u.ads_day === today ? u.ads_watched : 0;
   const adsVerified = u.ads_day === today ? u.ads_verified : 0;
+  const adsWatched2 = u.ads_day === today ? u.ads_watched2 : 0;
 
   return {
     id: u.id,
@@ -278,6 +279,9 @@ export function serialize(u: UserRow, socialDone: string[] = [], at = nowMs()) {
       verifyTotal: game.ads.verify.count,
       verifyReward: game.ads.verify.reward,
       verifyWaitSeconds: game.ads.verify.waitSeconds,
+      watched2: adsWatched2,
+      watch2Total: game.ads.watch2.count,
+      watch2Reward: game.ads.watch2.reward,
       allDone: adsWatched >= game.ads.watch.count && adsVerified >= game.ads.verify.count,
     },
 

@@ -50,6 +50,7 @@ export type UserRow = {
   ads_day: string | null;
   ads_watched: number;
   ads_verified: number;
+  ads_watched2: number;
   ads_all_bonus_day: string | null;
   referred_by: string | null;
   ref_first_done: boolean;
@@ -185,6 +186,9 @@ async function initSchema(): Promise<void> {
   `;
   await sql`INSERT INTO lp_program (id, distributed) VALUES (1, 0) ON CONFLICT (id) DO NOTHING;`;
 
+  // Dedicated Adsgram ad counter (resets daily with the other ad counts).
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS ads_watched2 INTEGER NOT NULL DEFAULT 0;`;
+
   // One-time migrations, keyed so each runs exactly once across all instances.
   await sql`CREATE TABLE IF NOT EXISTS migrations (key TEXT PRIMARY KEY, done_at BIGINT NOT NULL);`;
   // Reopen the X tasks for everyone — the links were broken, so prior "Done"
@@ -223,6 +227,7 @@ function rowToUser(r: Record<string, unknown>): UserRow {
     ads_day: (r.ads_day as string) ?? null,
     ads_watched: Number(r.ads_watched),
     ads_verified: Number(r.ads_verified),
+    ads_watched2: r.ads_watched2 != null ? Number(r.ads_watched2) : 0,
     ads_all_bonus_day: (r.ads_all_bonus_day as string) ?? null,
     referred_by: (r.referred_by as string) ?? null,
     ref_first_done: Boolean(r.ref_first_done),

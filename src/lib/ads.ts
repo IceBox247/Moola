@@ -20,6 +20,10 @@ export function adsEnabled(): boolean {
   return !!MONETAG_ZONE || !!ADSGRAM_BLOCK;
 }
 
+export function adsgramEnabled(): boolean {
+  return !!ADSGRAM_BLOCK;
+}
+
 // ── Monetag ──────────────────────────────────────────────────────────────────
 
 let monetagInjected = false;
@@ -113,13 +117,19 @@ export function loadAdSdk(): void {
 }
 
 /**
- * Show a rewarded ad, resolving true only if it completed. Tries Monetag first,
- * then Adsgram. `format` picks the Monetag placement ('interstitial' full video
- * or 'pop' popup); Adsgram uses its configured block either way.
+ * Show a rewarded ad, resolving true only if it completed.
+ *   provider 'auto'    → Monetag first, then Adsgram (default)
+ *   provider 'monetag' → Monetag only
+ *   provider 'adsgram' → Adsgram only
+ * `format` picks the Monetag placement ('interstitial' or 'pop').
  */
-export async function showRewardedAd(format: 'interstitial' | 'pop' = 'interstitial'): Promise<boolean> {
+export async function showRewardedAd(
+  opts: { provider?: 'auto' | 'monetag' | 'adsgram'; format?: 'interstitial' | 'pop' } = {}
+): Promise<boolean> {
   if (typeof window === 'undefined') return false;
-  if (MONETAG_ZONE && (await showMonetag(format))) return true;
-  if (ADSGRAM_BLOCK && (await showAdsgram())) return true;
+  const provider = opts.provider ?? 'auto';
+  const format = opts.format ?? 'interstitial';
+  if (provider !== 'adsgram' && MONETAG_ZONE && (await showMonetag(format))) return true;
+  if (provider !== 'monetag' && ADSGRAM_BLOCK && (await showAdsgram())) return true;
   return false;
 }

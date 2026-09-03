@@ -96,6 +96,8 @@ export const game = {
   ads: {
     watch: { count: 10, reward: 1.25, label: 'Watch Ads' },
     verify: { count: 5, reward: 2.5, label: 'Verify Ads', waitSeconds: 5 },
+    // Dedicated Adsgram rewarded ads (separate button + daily cap).
+    watch2: { count: 10, reward: 1.25, label: 'Bonus Ads' },
   },
 
   social: [

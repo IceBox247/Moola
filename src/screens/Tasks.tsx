@@ -8,7 +8,7 @@ import { ProgressBar } from '@/components/ui';
 import { fmt } from '@/lib/format';
 import { haptic, notify, openLink, selection } from '@/lib/telegram';
 import { unlockAudio, playSfx } from '@/lib/audio';
-import { adsEnabled, loadAdSdk, showRewardedAd } from '@/lib/ads';
+import { adsEnabled, adsgramEnabled, loadAdSdk, showRewardedAd } from '@/lib/ads';
 import { socialLink, links } from '@/lib/links';
 import { api } from '@/lib/client';
 import type { PublicUser } from '@/lib/types';
@@ -437,18 +437,23 @@ function CheckIn() {
 function AdTasks() {
   const { user, act, toast } = useStore();
   const ads = user!.ads;
-  const [watching, setWatching] = useState<null | 'watch' | 'verify'>(null);
+  const [watching, setWatching] = useState<null | 'watch' | 'verify' | 'watch2'>(null);
+  const showBonus = adsgramEnabled();
 
   // Preload the Monetag SDK so the first ad opens instantly.
   useEffect(() => {
     loadAdSdk();
   }, []);
-  const totalDone = ads.watched + ads.verified;
-  const totalTasks = ads.watchTotal + ads.verifyTotal;
-  const earnedToday = ads.watched * ads.watchReward + ads.verified * ads.verifyReward;
-  const maxToday = ads.watchTotal * ads.watchReward + ads.verifyTotal * ads.verifyReward;
+  const bonusDone = showBonus ? ads.watched2 : 0;
+  const bonusTotal = showBonus ? ads.watch2Total : 0;
+  const totalDone = ads.watched + ads.verified + bonusDone;
+  const totalTasks = ads.watchTotal + ads.verifyTotal + bonusTotal;
+  const earnedToday =
+    ads.watched * ads.watchReward + ads.verified * ads.verifyReward + bonusDone * ads.watch2Reward;
+  const maxToday =
+    ads.watchTotal * ads.watchReward + ads.verifyTotal * ads.verifyReward + bonusTotal * ads.watch2Reward;
 
-  async function credit(type: 'watch' | 'verify') {
+  async function credit(type: 'watch' | 'verify' | 'watch2') {
     const res = await act<{ user?: PublicUser; reward?: number; needsChannel?: boolean; channelUrl?: string }>(
       'tasks/ad',
       { type }
@@ -462,16 +467,21 @@ function AdTasks() {
     toast(`+${fmt(res.reward ?? 0, 2)} MOOLA`, 'good');
   }
 
-  async function run(type: 'watch' | 'verify') {
+  async function run(type: 'watch' | 'verify' | 'watch2') {
     if (watching) return;
     haptic('light');
     unlockAudio();
     setWatching(type);
 
-    // Real Monetag ad when configured: only credit if the ad actually completes.
-    if (adsEnabled()) {
+    // watch2 is the dedicated Adsgram button; watch/verify use whatever's set
+    // (Monetag first, Adsgram fallback). Only credit if the ad completes.
+    const useReal = type === 'watch2' ? adsgramEnabled() : adsEnabled();
+    if (useReal) {
       try {
-        const ok = await showRewardedAd(type === 'verify' ? 'pop' : 'interstitial');
+        const ok = await showRewardedAd({
+          provider: type === 'watch2' ? 'adsgram' : 'auto',
+          format: type === 'verify' ? 'pop' : 'interstitial',
+        });
         if (!ok) {
           toast('No ad available right now — try again shortly', 'bad');
           return;
@@ -546,12 +556,33 @@ function AdTasks() {
         </button>
       </div>
 
+      {/* Bonus (Adsgram) ads — only shown when Adsgram is configured */}
+      {showBonus && (
+        <div className="card flex items-center gap-3 p-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5 text-2xl">🎁</div>
+          <div className="flex-1">
+            <div className="font-bold">Bonus Ads</div>
+            <div className="text-xs gold-text font-semibold">+{fmt(ads.watch2Reward, 2)} MOOLA per ad</div>
+            <div className="text-xs text-white/40">
+              {ads.watched2}/{ads.watch2Total} watched today
+            </div>
+          </div>
+          <button
+            onClick={() => run('watch2')}
+            disabled={ads.watched2 >= ads.watch2Total || !!watching}
+            className={`px-5 py-2.5 ${ads.watched2 >= ads.watch2Total ? 'btn bg-white/5 text-white/40' : 'btn-gold'}`}
+          >
+            {ads.watched2 >= ads.watch2Total ? 'Done' : watching === 'watch2' ? '…' : 'Watch'}
+          </button>
+        </div>
+      )}
+
       <AdOverlay type={watching} seconds={user!.ads.verifyWaitSeconds} />
     </div>
   );
 }
 
-function AdOverlay({ type, seconds }: { type: null | 'watch' | 'verify'; seconds: number }) {
+function AdOverlay({ type, seconds }: { type: null | 'watch' | 'verify' | 'watch2'; seconds: number }) {
   return (
     <AnimatePresence>
       {type && (
