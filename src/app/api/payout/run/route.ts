@@ -18,7 +18,10 @@ async function handle(req: NextRequest) {
     const auth = req.headers.get('authorization');
     if (auth !== `Bearer ${secret}`) return json({ error: 'unauthorized' }, 401);
   }
-  const result = await runPayouts(3);
+  // Drain a healthy batch each run. The worker sends sequentially and waits for
+  // confirmation, so keep this within maxDuration; the every-minute cron then
+  // clears any backlog quickly instead of letting it pile up.
+  const result = await runPayouts(10);
   return json(result);
 }
 
