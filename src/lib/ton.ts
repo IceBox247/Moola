@@ -118,17 +118,42 @@ export async function fetchTonUsd(): Promise<number> {
   }
 }
 
-/** Native coin (TON / GRAM) balance of an account, in whole coins. */
-export async function fetchTonBalance(address: string): Promise<number> {
+/** Native coin (TON) balance via tonapi, or `null` if it can't be read. */
+async function tonBalanceTonapi(address: string): Promise<number | null> {
   try {
     const url = `${BASE}/accounts/${encodeURIComponent(address)}`;
     const res = await fetch(url, { headers: headers(), cache: 'no-store' });
-    if (!res.ok) return 0;
+    if (!res.ok) return null;
     const data = (await res.json()) as { balance?: string | number };
     return Number(data.balance ?? 0) / 1e9;
   } catch {
-    return 0;
+    return null;
   }
+}
+
+/** Native coin (TON) balance via toncenter v3 (fallback), or `null`. */
+async function tonBalanceTC(address: string): Promise<number | null> {
+  try {
+    const url = `${TC_BASE}/walletInformation?address=${encodeURIComponent(address)}&use_v2=false`;
+    const res = await fetch(url, { headers: tcHeaders(), cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { balance?: string | number };
+    if (data.balance == null) return null;
+    return Number(data.balance) / 1e9;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Native coin (TON) balance of an account, in whole coins. Reads tonapi first,
+ * falls back to toncenter when tonapi is throttled. 0 only if a provider
+ * confirms the account is empty; 0 as well if neither could be read.
+ */
+export async function fetchTonBalance(address: string): Promise<number> {
+  const primary = await tonBalanceTonapi(address);
+  if (primary !== null) return primary;
+  return (await tonBalanceTC(address)) ?? 0;
 }
 
 export type JettonMove = { from: string; to: string; amount: number; time: number; ok: boolean };
