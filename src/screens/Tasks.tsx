@@ -134,6 +134,7 @@ export function TasksScreen() {
 
       {tab === 'earn' ? (
         <>
+          <BumperTask done={u.socialDone.includes('join_dollarbumper')} />
           <VideoTasks />
           <XTasks />
           <TikTokTasks />
