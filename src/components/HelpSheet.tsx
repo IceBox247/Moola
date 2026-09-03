@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useStore } from '@/lib/store';
-import { haptic } from '@/lib/telegram';
+import { haptic, openLink } from '@/lib/telegram';
 import { supportLink } from '@/lib/links';
 
 type QA = { q: string; a: string };
@@ -109,21 +109,16 @@ export function HelpSheet({ open, onClose }: { open: boolean; onClose: () => voi
               })}
             </div>
 
-            {sLink ? (
-              <a
-                href={sLink}
-                target="_blank"
-                rel="noreferrer"
-                onClick={() => haptic('medium')}
-                className="btn-primary mt-5 flex w-full items-center justify-center py-3.5"
-              >
-                💬 Still need help? Contact Support
-              </a>
-            ) : (
-              <p className="mt-5 text-center text-[11px] text-white/35">
-                For anything else, reach us in the official Telegram channel.
-              </p>
-            )}
+            <button
+              onClick={() => {
+                haptic('medium');
+                onClose();
+                if (sLink) openLink(sLink);
+              }}
+              className="btn-primary mt-5 flex w-full items-center justify-center py-3.5"
+            >
+              💬 Still need help? Contact Support
+            </button>
 
             <button onClick={onClose} className="btn-ghost mt-3 w-full py-3 text-sm">
               Close

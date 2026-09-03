@@ -25,15 +25,17 @@ export const links = {
 };
 
 /**
- * Deep link to the support bot, carrying the user's Moola id as the /start
- * payload so a mod can see who's writing (e.g. …?start=uid12345). Falls back to
- * the raw link if no id. Returns '' when no support bot is configured.
+ * Deep link to support. Prefers a dedicated support bot (NEXT_PUBLIC_SUPPORT_URL,
+ * with the user's Moola id as the /start payload); otherwise opens the MAIN bot's
+ * self-service support menu ("/start support"). Always returns a usable link.
  */
 export function supportLink(userId?: string | number): string {
-  if (!links.support) return '';
-  if (!userId) return links.support;
-  const sep = links.support.includes('?') ? '&' : '?';
-  return `${links.support}${sep}start=uid${userId}`;
+  if (links.support) {
+    if (!userId) return links.support;
+    const sep = links.support.includes('?') ? '&' : '?';
+    return `${links.support}${sep}start=uid${userId}`;
+  }
+  return `https://t.me/${botUsername}?start=support`;
 }
 
 export const botUsername = process.env.NEXT_PUBLIC_BOT_USERNAME || 'MoolaMiningBot';

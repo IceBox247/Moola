@@ -73,6 +73,7 @@ export type UserRow = {
   mining_settled_at: number | null;
   verified: boolean;
   verify_status: string;
+  support_until: number | null;
   last_free_withdraw_at: number | null;
   lp_usd: number;
   lp_settled_at: number | null;
@@ -143,6 +144,9 @@ async function initSchema(): Promise<void> {
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS reminded_at BIGINT;`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT FALSE;`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_status TEXT NOT NULL DEFAULT 'none';`;
+  // Support mode: when set (future ms), the user's next bot message is forwarded
+  // to the admin chat as a support ticket, then the flag is cleared.
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS support_until BIGINT;`;
   await sql`
     CREATE TABLE IF NOT EXISTS withdrawals (
       id         BIGSERIAL PRIMARY KEY,
@@ -274,6 +278,7 @@ function rowToUser(r: Record<string, unknown>): UserRow {
     mining_settled_at: r.mining_settled_at != null ? Number(r.mining_settled_at) : null,
     verified: Boolean(r.verified),
     verify_status: (r.verify_status as string) ?? 'none',
+    support_until: r.support_until != null ? Number(r.support_until) : null,
     last_free_withdraw_at: r.last_free_withdraw_at != null ? Number(r.last_free_withdraw_at) : null,
     lp_usd: r.lp_usd != null ? Number(r.lp_usd) : 0,
     lp_settled_at: r.lp_settled_at != null ? Number(r.lp_settled_at) : null,
