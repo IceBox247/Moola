@@ -465,10 +465,18 @@ export async function credit(userId: string, amount: number, kind: string, label
 
 // ── Liquidity rewards ────────────────────────────────────────────────────────
 
-/** MOOLA distributed so far by the LP rewards program. */
+/**
+ * MOOLA distributed so far by the LP rewards program. Cached 60s — this runs on
+ * every userResponse (every action) purely to show "budget left", so it doesn't
+ * need to hit the DB each time. grantLpReward() invalidates it when it changes.
+ */
+let lpDistCache: { at: number; v: number } | null = null;
 export async function lpDistributed(): Promise<number> {
+  if (lpDistCache && Date.now() - lpDistCache.at < 60_000) return lpDistCache.v;
   const { rows } = await sql`SELECT distributed FROM lp_program WHERE id = 1;`;
-  return Number(rows[0]?.distributed ?? 0);
+  const v = Number(rows[0]?.distributed ?? 0);
+  lpDistCache = { at: Date.now(), v };
+  return v;
 }
 
 /**
@@ -490,6 +498,7 @@ export async function grantLpReward(want: number): Promise<number> {
     RETURNING p.distributed AS new_dist, prev.d AS old_dist;
   `;
   const granted = Number(rows[0]?.new_dist ?? 0) - Number(rows[0]?.old_dist ?? 0);
+  if (granted > 0) lpDistCache = { at: Date.now(), v: Number(rows[0]?.new_dist ?? 0) }; // keep cache fresh
   return Math.max(0, granted);
 }
 

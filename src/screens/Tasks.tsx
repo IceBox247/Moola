@@ -15,6 +15,7 @@ import type { PublicUser } from '@/lib/types';
 
 const SOCIAL = [
   { id: 'channel_join', title: 'Join Official Moola Channel', reward: 10, icon: '📣', kind: 'channel' },
+  { id: 'follow_whatsapp', title: 'Follow Moola on WhatsApp', reward: 10, icon: '💬', kind: 'whatsapp' },
   { id: 'follow_x', title: 'Follow X (Twitter)', reward: 5, icon: '🐦', kind: 'x' },
   { id: 'subscribe_youtube', title: 'Subscribe on YouTube', reward: 10, icon: '▶️', kind: 'youtube' },
   { id: 'retweet', title: 'X (Twitter) Retweet', reward: 3, icon: '🔁', kind: 'x_post' },
