@@ -102,6 +102,9 @@ export const game = {
     verify: { count: 5, reward: 2.5, label: 'Verify Ads', waitSeconds: 5 },
     // Dedicated Adsgram rewarded ads (separate button + daily cap).
     watch2: { count: 10, reward: 1.25, label: 'Bonus Ads' },
+    // Adsgram Telegram-BOT ads: rewarded via a server postback (Reward URL)
+    // that Adsgram calls when the user finishes an ad shown inside the bot.
+    bot: { reward: 1.5, dailyCap: 30 },
   },
 
   social: [

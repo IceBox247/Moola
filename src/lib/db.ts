@@ -204,6 +204,9 @@ async function initSchema(): Promise<void> {
   // Daily free-withdrawal counter (premium users get several free per day).
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS free_wd_day TEXT;`;
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS free_wd_count INTEGER NOT NULL DEFAULT 0;`;
+  // Adsgram bot-ad daily reward counter (credited via the Reward URL postback).
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS bot_ad_day TEXT;`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS bot_ad_count INTEGER NOT NULL DEFAULT 0;`;
 
   // Withdrawal fee: track when a user last took their free withdrawal, and log
   // consumed on-chain fee payments so one payment can't unlock two withdrawals.
@@ -759,6 +762,34 @@ export async function rejectDashboardVideo(userId: string): Promise<void> {
         reject_day = ${today}
     WHERE user_id = ${userId} AND status <> 'approved';
   `;
+}
+
+// ── Adsgram bot-ad reward ────────────────────────────────────────────────────
+
+/**
+ * Credit a user for finishing an Adsgram bot ad (called by the Reward URL
+ * postback). Enforces a per-day cap atomically so a leaked URL can't be abused
+ * for unlimited MOOLA. Returns whether a reward was credited.
+ */
+export async function creditBotAd(userId: string): Promise<{ credited: boolean; reason?: string }> {
+  await ensureSchema();
+  const user = await getUser(userId);
+  if (!user) return { credited: false, reason: 'unknown user' };
+  const today = dayKey();
+  const cap = game.ads.bot.dailyCap;
+  // Atomically bump the daily counter only if under the cap; RETURNING tells us
+  // whether this call is within quota.
+  const { rows } = await sql`
+    UPDATE users
+    SET bot_ad_count = CASE WHEN bot_ad_day = ${today} THEN bot_ad_count + 1 ELSE 1 END,
+        bot_ad_day = ${today}
+    WHERE id = ${userId}
+      AND (bot_ad_day <> ${today} OR bot_ad_count < ${cap})
+    RETURNING id;
+  `;
+  if (!rows.length) return { credited: false, reason: 'daily cap reached' };
+  await credit(userId, game.ads.bot.reward, 'bot_ad', 'Bot ad reward 🤖');
+  return { credited: true };
 }
 
 // ── Premium ──────────────────────────────────────────────────────────────────
