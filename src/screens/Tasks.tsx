@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useStore } from '@/lib/store';
@@ -450,7 +450,21 @@ function AdTasks() {
   const { user, act, toast } = useStore();
   const ads = user!.ads;
   const [watching, setWatching] = useState<null | 'watch' | 'verify' | 'watch2'>(null);
+  const [howTo, setHowTo] = useState<null | 'watch' | 'verify' | 'watch2'>(null);
   const showBonus = adsgramEnabled();
+
+  // Show the "How to Earn" instructions before launching. Bonus (Adsgram) ads
+  // ALWAYS show it (the compulsory "open the ad" flow); Watch/Verify show it
+  // once per session.
+  const seenHowTo = useRef(false);
+  function start(type: 'watch' | 'verify' | 'watch2') {
+    if (!!watching) return;
+    if (type === 'watch2' || !seenHowTo.current) {
+      setHowTo(type);
+      return;
+    }
+    run(type);
+  }
 
   // Preload the Monetag SDK so the first ad opens instantly.
   useEffect(() => {
@@ -539,7 +553,7 @@ function AdTasks() {
           </div>
         </div>
         <button
-          onClick={() => run('watch')}
+          onClick={() => start('watch')}
           disabled={ads.watched >= ads.watchTotal || !!watching}
           className={`px-5 py-2.5 ${ads.watched >= ads.watchTotal ? 'btn bg-white/5 text-white/40' : 'btn-gold'}`}
         >
@@ -560,7 +574,7 @@ function AdTasks() {
           </div>
         </div>
         <button
-          onClick={() => run('verify')}
+          onClick={() => start('verify')}
           disabled={ads.verified >= ads.verifyTotal || !!watching}
           className={`px-5 py-2.5 ${ads.verified >= ads.verifyTotal ? 'btn bg-white/5 text-white/40' : 'btn-primary'}`}
         >
@@ -575,12 +589,13 @@ function AdTasks() {
           <div className="flex-1">
             <div className="font-bold">Bonus Ads</div>
             <div className="text-xs gold-text font-semibold">+{fmt(ads.watch2Reward, 2)} MOOLA per ad</div>
+            <div className="text-[11px] font-semibold text-amber-300/90">👆 Tap “Open” inside each ad to earn</div>
             <div className="text-xs text-white/40">
               {ads.watched2}/{ads.watch2Total} watched today
             </div>
           </div>
           <button
-            onClick={() => run('watch2')}
+            onClick={() => start('watch2')}
             disabled={ads.watched2 >= ads.watch2Total || !!watching}
             className={`px-5 py-2.5 ${ads.watched2 >= ads.watch2Total ? 'btn bg-white/5 text-white/40' : 'btn-gold'}`}
           >
@@ -590,7 +605,93 @@ function AdTasks() {
       )}
 
       <AdOverlay type={watching} seconds={user!.ads.verifyWaitSeconds} />
+      <HowToEarnSheet
+        type={howTo}
+        onClose={() => setHowTo(null)}
+        onConfirm={() => {
+          const t = howTo;
+          seenHowTo.current = true;
+          setHowTo(null);
+          if (t) run(t);
+        }}
+      />
     </div>
+  );
+}
+
+/**
+ * "How to Earn" instructions shown before a rewarded ad. Emphasises that the
+ * user must OPEN the ad (tap the button inside it) and watch it fully — for
+ * Bonus (Adsgram) ads, several ads play back-to-back and each must be opened.
+ */
+function HowToEarnSheet({
+  type,
+  onConfirm,
+  onClose,
+}: {
+  type: null | 'watch' | 'verify' | 'watch2';
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const isBonus = type === 'watch2';
+  return (
+    <AnimatePresence>
+      {type && (
+        <motion.div
+          className="fixed inset-0 z-[75] flex items-end justify-center bg-black/85 backdrop-blur-sm"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+        >
+          <motion.div
+            className="w-full max-w-md rounded-t-3xl border-t border-white/10 bg-[#0b0f0c] p-5 pb-8 text-center"
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/15" />
+            <div className="text-4xl">📺</div>
+            <div className="mt-1 text-lg font-black">How to Earn</div>
+
+            <div className="mt-4 space-y-3 text-left">
+              <div className="flex gap-3 rounded-2xl border border-amber-400/30 bg-amber-500/[0.08] p-3">
+                <span className="text-xl">👆</span>
+                <p className="text-[13px] leading-relaxed text-white/75">
+                  <b className="text-white">Tap the “Open” button inside the ad.</b> Just watching isn’t
+                  enough — you <b className="text-amber-300">must click Open</b> in the ad to qualify for the reward.
+                </p>
+              </div>
+              {isBonus && (
+                <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                  <span className="text-xl">🔁</span>
+                  <p className="text-[13px] leading-relaxed text-white/75">
+                    <b className="text-white">A few ads play back-to-back.</b> Open <b>each one</b> as it appears —
+                    tap Open, let it load, then continue to the next. Opening all of them is required.
+                  </p>
+                </div>
+              )}
+              <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                <span className="text-xl">⏱️</span>
+                <p className="text-[13px] leading-relaxed text-white/75">
+                  <b className="text-white">Watch the full ad</b> before closing. Closing early fails verification.
+                </p>
+              </div>
+              <div className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                <span className="text-xl">💰</span>
+                <p className="text-[13px] leading-relaxed text-white/75">Each verified ad pays straight to your balance.</p>
+              </div>
+            </div>
+
+            <button onClick={onConfirm} className="btn-primary mt-5 w-full py-3.5 font-black">
+              Got it — Watch Ad
+            </button>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
