@@ -71,7 +71,7 @@ export function MineScreen() {
         .catch(() => {});
     };
     load();
-    const t = setInterval(load, 180_000);
+    const t = setInterval(load, 300_000); // 5 min — market cap barely moves; keep edge polls low
     // Refresh once when the app is brought back to the foreground.
     const onVis = () => {
       if (!document.hidden) load();

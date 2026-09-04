@@ -10,12 +10,28 @@ const nextConfig = {
   images: { unoptimized: true },
   // Telegram WebApp is embedded in an iframe; allow it.
   async headers() {
+    const oneYearImmutable = 'public, max-age=31536000, immutable';
     return [
       {
         source: '/:path*',
-        headers: [
-          { key: 'X-Content-Type-Options', value: 'nosniff' },
-        ],
+        headers: [{ key: 'X-Content-Type-Options', value: 'nosniff' }],
+      },
+      // Static media in /public is served from stable paths. Without an explicit
+      // immutable cache header, browsers/CDN revalidate on every view — each a
+      // billable edge request. Cache hard so repeat views hit the browser cache
+      // and never touch the edge. (Art paths are versioned by content changes;
+      // if you replace an asset, use a new filename.)
+      {
+        source: '/:path*.(webp|png|jpg|jpeg|gif|svg|ico|avif|mp3|wav|ogg|woff|woff2|ttf|otf|mp4|webm)',
+        headers: [{ key: 'Cache-Control', value: oneYearImmutable }],
+      },
+      {
+        source: '/brand/:path*',
+        headers: [{ key: 'Cache-Control', value: oneYearImmutable }],
+      },
+      {
+        source: '/nft/:path*',
+        headers: [{ key: 'Cache-Control', value: oneYearImmutable }],
       },
     ];
   },

@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { upsertUser, sql, approveVideoTask, rejectVideoTask, approveDashboardVideo, rejectDashboardVideo } from '@/lib/db';
+import {
+  upsertUser,
+  sql,
+  approveVideoTask,
+  rejectVideoTask,
+  approveDashboardVideo,
+  rejectDashboardVideo,
+  withdrawalStats,
+  countUsers,
+} from '@/lib/db';
 import { game } from '@/lib/config';
 import { sendBotMessage } from '@/lib/telegramBot';
 import { links } from '@/lib/links';
@@ -301,6 +310,26 @@ export async function POST(req: NextRequest) {
           text: ok ? `✅ Sent to ${m[1]}${lang && lang !== 'en' ? ` (translated → ${lang})` : ''}` : `⚠️ Could not reach ${m[1]}`,
         });
       }
+      return NextResponse.json({ ok: true });
+    }
+
+    // Admin: "/withdrawals" (or "/stats") → withdrawal & user totals.
+    if (isAdmin && (text.startsWith('/withdrawals') || text.startsWith('/stats'))) {
+      const [w, users] = await Promise.all([
+        withdrawalStats().catch(() => null),
+        countUsers().catch(() => 0),
+      ]);
+      const fmt = (n: number) => Math.round(n).toLocaleString();
+      const body = w
+        ? `📊 <b>Moola — Withdrawals</b>\n\n` +
+          `⏳ Pending: <b>${w.pendingCount}</b> · ${fmt(w.pendingAmount)} MOOLA\n` +
+          `✅ Paid: <b>${w.paidCount}</b> · ${fmt(w.paidAmount)} MOOLA\n` +
+          `⚠️ Failed/refunded: <b>${w.failedCount}</b>\n` +
+          `🔎 Under review: <b>${w.reviewCount}</b>\n` +
+          `📦 Total requests: <b>${w.totalRequests}</b>\n\n` +
+          `👥 Registered users: <b>${fmt(users)}</b>`
+        : '⚠️ Could not load stats right now.';
+      await tg('sendMessage', { chat_id: msg.chat.id, parse_mode: 'HTML', text: body });
       return NextResponse.json({ ok: true });
     }
 

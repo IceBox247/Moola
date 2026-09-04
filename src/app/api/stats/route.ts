@@ -22,10 +22,11 @@ export async function GET() {
   const data = await payload();
   return NextResponse.json(data, {
     headers: {
-      // Serve from the CDN for 60s; keep serving the stale value for another
-      // 5 min while it refreshes in the background. Most polls never reach the
-      // function or the database.
-      'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+      // Serve from the CDN for 5 min; keep serving the stale value for another
+      // 10 min while it refreshes in the background. Market cap barely moves, so
+      // the vast majority of polls are served from the edge cache and never
+      // reach the function or the database.
+      'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
     },
   });
 }

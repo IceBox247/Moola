@@ -863,6 +863,46 @@ export async function consumeFee(eventId: string, userId: string, amount: number
   return rowCount > 0;
 }
 
+/**
+ * Aggregate withdrawal stats for the admin dashboard: count + total MOOLA per
+ * status. Cached briefly so a bot command can't hammer the DB.
+ */
+let wdStatsCache: { at: number; data: WithdrawalStats } | null = null;
+export type WithdrawalStats = {
+  byStatus: Record<string, { count: number; amount: number }>;
+  pendingCount: number;
+  pendingAmount: number;
+  paidCount: number;
+  paidAmount: number;
+  failedCount: number;
+  reviewCount: number;
+  totalRequests: number;
+};
+export async function withdrawalStats(): Promise<WithdrawalStats> {
+  await ensureSchema();
+  if (wdStatsCache && Date.now() - wdStatsCache.at < 30_000) return wdStatsCache.data;
+  const { rows } = await sql`
+    SELECT status, COUNT(*)::int AS count, COALESCE(SUM(amount), 0)::float8 AS amount
+    FROM withdrawals GROUP BY status;
+  `;
+  const byStatus: Record<string, { count: number; amount: number }> = {};
+  for (const r of rows) byStatus[String(r.status)] = { count: Number(r.count), amount: Number(r.amount) };
+  const g = (s: string) => byStatus[s] ?? { count: 0, amount: 0 };
+  const data: WithdrawalStats = {
+    byStatus,
+    // 'pending' + 'processing' are both in-flight.
+    pendingCount: g('pending').count + g('processing').count,
+    pendingAmount: g('pending').amount + g('processing').amount,
+    paidCount: g('paid').count,
+    paidAmount: g('paid').amount,
+    failedCount: g('failed').count,
+    reviewCount: g('review').count,
+    totalRequests: rows.reduce((s, r) => s + Number(r.count), 0),
+  };
+  wdStatsCache = { at: Date.now(), data };
+  return data;
+}
+
 export async function listHistory(userId: string, limit = 40) {
   await ensureSchema();
   const { rows } = await sql`
