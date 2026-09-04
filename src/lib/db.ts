@@ -186,6 +186,19 @@ async function initSchema(): Promise<void> {
   // until the next day.
   await sql`ALTER TABLE video_tasks ADD COLUMN IF NOT EXISTS reject_day TEXT;`;
   await sql`ALTER TABLE video_tasks ADD COLUMN IF NOT EXISTS reject_count INTEGER NOT NULL DEFAULT 0;`;
+  // Dashboard-video bounty submissions — one row per user (resubmittable after a
+  // rejection, subject to the daily cap). Reward credited on admin approval.
+  await sql`
+    CREATE TABLE IF NOT EXISTS dashboard_videos (
+      user_id      TEXT PRIMARY KEY,
+      status       TEXT NOT NULL DEFAULT 'pending',
+      created_at   BIGINT NOT NULL,
+      reviewed_at  BIGINT,
+      reject_day   TEXT,
+      reject_count INTEGER NOT NULL DEFAULT 0
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_dashvid_status ON dashboard_videos(status);`;
   // Premium Moola: expiry (ms). NULL = not premium; a far-future value = lifetime.
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_until BIGINT;`;
   // Daily free-withdrawal counter (premium users get several free per day).
@@ -646,6 +659,101 @@ export async function rejectVideoTask(userId: string): Promise<void> {
   const today = dayKey();
   await sql`
     UPDATE video_tasks
+    SET status = 'rejected', reviewed_at = ${nowMs()},
+        reject_count = CASE WHEN reject_day = ${today} THEN reject_count + 1 ELSE 1 END,
+        reject_day = ${today}
+    WHERE user_id = ${userId} AND status <> 'approved';
+  `;
+}
+
+// ── Dashboard-video bounty (file upload → admin approval) ─────────────────────
+
+export type DashboardVideoState = {
+  status: 'none' | 'pending' | 'approved' | 'rejected';
+  slotsLeft: number;
+  slotsTotal: number;
+  reward: number;
+  script: string;
+  lockedToday: boolean;
+  attemptsLeftToday: number;
+};
+
+let approvedDashVideoCache: { at: number; n: number } | null = null;
+async function approvedDashVideoCount(fresh = false): Promise<number> {
+  if (!fresh && approvedDashVideoCache && Date.now() - approvedDashVideoCache.at < 60_000) return approvedDashVideoCache.n;
+  const { rows } = await sql`SELECT COUNT(*)::int AS n FROM dashboard_videos WHERE status = 'approved';`;
+  const n = Number(rows[0]?.n ?? 0);
+  approvedDashVideoCache = { at: Date.now(), n };
+  return n;
+}
+
+export async function getDashboardVideoState(userId: string): Promise<DashboardVideoState> {
+  await ensureSchema();
+  const [{ rows }, approved] = await Promise.all([
+    sql`SELECT status, reject_day, reject_count FROM dashboard_videos WHERE user_id = ${userId} LIMIT 1;`,
+    approvedDashVideoCount(),
+  ]);
+  const row = rows[0];
+  const max = game.dashboardVideo.maxRejectsPerDay;
+  const todayRejects = row && row.reject_day === dayKey() ? Number(row.reject_count ?? 0) : 0;
+  return {
+    status: row ? (String(row.status) as DashboardVideoState['status']) : 'none',
+    slotsLeft: Math.max(0, game.dashboardVideo.slots - approved),
+    slotsTotal: game.dashboardVideo.slots,
+    reward: game.dashboardVideo.reward,
+    script: game.dashboardVideo.script,
+    lockedToday: todayRejects >= max,
+    attemptsLeftToday: Math.max(0, max - todayRejects),
+  };
+}
+
+export async function submitDashboardVideo(userId: string): Promise<VideoSubmitResult> {
+  await ensureSchema();
+  const approved = await approvedDashVideoCount();
+  if (approved >= game.dashboardVideo.slots) return { ok: false, status: 'none', reason: 'All slots are filled' };
+
+  const { rows } = await sql`SELECT status, reject_day, reject_count FROM dashboard_videos WHERE user_id = ${userId} LIMIT 1;`;
+  const current = rows[0]?.status as string | undefined;
+  if (current === 'pending') return { ok: false, status: 'pending', reason: 'Your video is already awaiting review' };
+  if (current === 'approved') return { ok: false, status: 'approved', reason: 'You already earned this reward' };
+
+  const todayRejects = rows[0]?.reject_day === dayKey() ? Number(rows[0].reject_count ?? 0) : 0;
+  if (todayRejects >= game.dashboardVideo.maxRejectsPerDay) {
+    return {
+      ok: false,
+      status: 'rejected',
+      reason: `You've used your ${game.dashboardVideo.maxRejectsPerDay} attempts for today. Try again tomorrow.`,
+    };
+  }
+
+  const now = nowMs();
+  await sql`
+    INSERT INTO dashboard_videos (user_id, status, created_at)
+    VALUES (${userId}, 'pending', ${now})
+    ON CONFLICT (user_id) DO UPDATE SET status = 'pending', created_at = ${now}, reviewed_at = NULL;
+  `;
+  return { ok: true, status: 'pending' };
+}
+
+export async function approveDashboardVideo(userId: string): Promise<{ credited: boolean; reason?: string }> {
+  await ensureSchema();
+  if ((await approvedDashVideoCount(true)) >= game.dashboardVideo.slots) return { credited: false, reason: 'slots full' };
+  const { rows } = await sql`
+    UPDATE dashboard_videos SET status = 'approved', reviewed_at = ${nowMs()}
+    WHERE user_id = ${userId} AND status <> 'approved'
+    RETURNING user_id;
+  `;
+  if (!rows.length) return { credited: false, reason: 'already approved or missing' };
+  approvedDashVideoCache = null;
+  await credit(userId, game.dashboardVideo.reward, 'dashboard_video', 'Moola dashboard video reward 🎥');
+  return { credited: true };
+}
+
+export async function rejectDashboardVideo(userId: string): Promise<void> {
+  await ensureSchema();
+  const today = dayKey();
+  await sql`
+    UPDATE dashboard_videos
     SET status = 'rejected', reviewed_at = ${nowMs()},
         reject_count = CASE WHEN reject_day = ${today} THEN reject_count + 1 ELSE 1 END,
         reject_day = ${today}

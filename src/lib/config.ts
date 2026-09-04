@@ -178,6 +178,16 @@ export const game = {
     maxRejectsPerDay: 2, // after this many rejections in a day, locked until tomorrow
   },
 
+  // Dashboard-video bounty: users upload a short clip holding their phone showing
+  // the Moola mining dashboard + saying a line. The video is sent to the admin
+  // bot for manual approve/reject. Limited to `slots` winners.
+  dashboardVideo: {
+    reward: 1500,
+    slots: 100,
+    maxRejectsPerDay: 2,
+    script: 'Moola is the best project on TON. Make sure you start mining Moola tokens!',
+  },
+
   // Premium Moola: pay TON once for perks — extra free withdrawals/day, a higher
   // no-verification ceiling, and a mining multiplier. Two tiers.
   premium: {

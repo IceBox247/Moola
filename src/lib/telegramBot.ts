@@ -134,6 +134,49 @@ export async function sendVideoSubmission(
 }
 
 /**
+ * Forward a user's dashboard-bounty video to the admin chat with Approve/Reject
+ * inline buttons (handled by the bot webhook). Returns whether it was sent.
+ */
+export async function sendDashboardVideo(
+  video: Blob,
+  userId: string,
+  name: string,
+  username: string | null,
+  reward: number
+): Promise<boolean> {
+  const chatId = process.env.ADMIN_CHAT_ID;
+  if (!env.BOT_TOKEN || !chatId) return false;
+  const who = username ? `@${username}` : name || userId;
+  const caption =
+    `🎥 <b>New dashboard video</b>\n\n` +
+    `From: <b>${who}</b> (<code>${userId}</code>)\n\n` +
+    `Approve to pay the user <b>${reward} MOOLA</b>.`;
+  const fd = new FormData();
+  fd.set('chat_id', chatId);
+  fd.set('caption', caption);
+  fd.set('parse_mode', 'HTML');
+  fd.set(
+    'reply_markup',
+    JSON.stringify({
+      inline_keyboard: [
+        [
+          { text: `✅ Approve (+${reward})`, callback_data: `dvid:approve:${userId}` },
+          { text: '❌ Reject', callback_data: `dvid:reject:${userId}` },
+        ],
+      ],
+    })
+  );
+  fd.set('video', video, 'dashboard.mp4');
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendVideo`, { method: 'POST', body: fd });
+    const d = await res.json().catch(() => ({}));
+    return !!d?.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Forward a user's verification video/photo to the admin chat with
  * Approve/Reject inline buttons (handled by the bot webhook).
  */

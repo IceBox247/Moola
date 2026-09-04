@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyInitData } from './auth';
-import { upsertUser, getUser, getSocialDone, withdrawnTotal, getVideoTaskState, lpDistributed, type UserRow } from './db';
+import {
+  upsertUser,
+  getUser,
+  getSocialDone,
+  withdrawnTotal,
+  getVideoTaskState,
+  getDashboardVideoState,
+  lpDistributed,
+  type UserRow,
+} from './db';
 import { serialize } from './state';
 import { moolaMarketStats } from './stonfi';
 import { lpRewardsEnabled } from './lp';
@@ -67,13 +76,14 @@ export async function channelBlock(userId: string) {
 export async function userResponse(id: string, extra?: Record<string, unknown>) {
   const u = await getUser(id);
   if (!u) return unauthorized();
-  const [socialDone, wTotal, stats, videoTask, lpDist] = await Promise.all([
+  const [socialDone, wTotal, stats, videoTask, dashboardVideo, lpDist] = await Promise.all([
     getSocialDone(id),
     withdrawnTotal(id),
     // Live market cap embedded so the dashboard never depends on a separate
     // fetch (cached 60s server-side; 0 on any error → client falls back).
     moolaMarketStats().catch(() => null),
     getVideoTaskState(id).catch(() => null),
+    getDashboardVideoState(id).catch(() => null),
     lpRewardsEnabled() ? lpDistributed().catch(() => 0) : Promise.resolve(0),
   ]);
   const lpCap = game.lpRewards.capMoola;
@@ -84,6 +94,7 @@ export async function userResponse(id: string, extra?: Record<string, unknown>) 
       marketCapUsd: stats?.marketCapUsd ?? 0,
       livePriceUsd: stats?.moolaPriceUsd ?? 0,
       videoTask,
+      dashboardVideo,
       lpRewardsActive: lpRewardsEnabled() && lpDist < lpCap,
       lpBudgetLeftPct: Math.max(0, Math.min(100, Math.round((1 - lpDist / lpCap) * 100))),
       // First-withdrawal gate (anti multi-account).

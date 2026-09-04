@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useStore } from '@/lib/store';
 import { ProgressBar } from '@/components/ui';
 import { fmt } from '@/lib/format';
-import { haptic, notify, openLink, selection } from '@/lib/telegram';
+import { haptic, notify, openLink, selection, getInitData } from '@/lib/telegram';
 import { unlockAudio, playSfx } from '@/lib/audio';
 import { adsEnabled, adsgramEnabled, loadAdSdk, showRewardedAd } from '@/lib/ads';
 import { socialLink, links } from '@/lib/links';
@@ -135,6 +135,7 @@ export function TasksScreen() {
       {tab === 'earn' ? (
         <>
           <BumperTask done={u.socialDone.includes('join_dollarbumper')} />
+          <DashboardVideoTask />
           <VideoTasks />
           <XTasks />
           <TikTokTasks />
@@ -149,6 +150,135 @@ export function TasksScreen() {
           {SOCIAL.map((s) => (
             <SocialTask key={s.id} task={s} done={u.socialDone.includes(s.id)} />
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Dashboard-video bounty: record a clip holding your phone showing the Moola
+ * dashboard + saying the line, upload it, and it's sent to the admin bot for
+ * approval. Reward credited only on approval.
+ */
+function DashboardVideoTask() {
+  const { user, setUser, toast } = useStore();
+  const dv = user!.dashboardVideo;
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  if (!dv) return null;
+  const status = dv.status;
+  const full = dv.slotsLeft <= 0;
+  const canSubmit = (status === 'none' || status === 'rejected') && !full && !dv.lockedToday;
+
+  async function upload(file: File) {
+    if (busy) return;
+    setBusy(true);
+    haptic('heavy');
+    try {
+      const form = new FormData();
+      form.set('video', file);
+      const res = await fetch('/api/tasks/dashboard-video', {
+        method: 'POST',
+        headers: { 'x-init-data': getInitData() },
+        body: form,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.needsChannel) {
+        toast('📣 Join our Telegram channel to earn', 'bad');
+        return;
+      }
+      if (!res.ok || data.error) throw new Error(data.error ?? 'Upload failed');
+      if (data.user) setUser(data.user as PublicUser);
+      notify('success');
+      toast('🎥 Video submitted — under review!', 'good');
+    } catch (e) {
+      toast((e as Error).message, 'bad');
+    } finally {
+      setBusy(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  return (
+    <div className="card-neon relative overflow-hidden p-4">
+      <div className="flex items-start gap-3">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/5 text-2xl">🎥</div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <div className="font-black">Dashboard Video Reward</div>
+            <span className="chip shrink-0 border border-gold-400/40 bg-gold-500/[0.1] text-gold-300">
+              +{fmt(dv.reward, 0)}
+            </span>
+          </div>
+          <p className="mt-1 text-xs leading-relaxed text-white/60">
+            Record a short video <b className="text-white/80">holding your phone showing your Moola dashboard</b>, and say:
+          </p>
+          <p className="mt-2 rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-[13px] font-semibold italic text-white/85">
+            “{dv.script}”
+          </p>
+          <div className="mt-2 text-[11px] font-semibold text-white/45">
+            {full ? (
+              <span className="text-white/40">All {dv.slotsTotal} slots filled 🎉</span>
+            ) : (
+              <>
+                <span className="neon-text">{dv.slotsLeft}</span> of {dv.slotsTotal} rewards left · {fmt(dv.reward, 0)} MOOLA each
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {status === 'approved' && (
+        <div className="mt-3 rounded-2xl border border-moo-500/40 bg-moo-500/10 px-3 py-2 text-sm font-bold text-moo-300">
+          ✅ Approved · +{fmt(dv.reward, 0)} MOOLA added to your balance
+        </div>
+      )}
+      {status === 'pending' && (
+        <div className="mt-3 rounded-2xl border border-gold-400/40 bg-gold-500/[0.08] px-3 py-2 text-sm font-semibold text-gold-200">
+          ⏳ Submitted — under review. You’ll be notified once it’s approved.
+        </div>
+      )}
+      {dv.lockedToday && status !== 'approved' && status !== 'pending' && (
+        <div className="mt-3 rounded-2xl border border-rose-400/30 bg-rose-500/[0.08] px-3 py-2 text-sm font-semibold text-rose-200">
+          ❌ You’ve used your attempts for today. Come back tomorrow. 🐮
+        </div>
+      )}
+
+      {canSubmit && (
+        <div className="mt-3 space-y-2">
+          {status === 'rejected' && (
+            <div className="text-xs font-semibold text-rose-300/90">
+              ❌ Not approved last time — record a new one.{' '}
+              {dv.attemptsLeftToday > 0 && (
+                <span className="text-white/50">
+                  ({dv.attemptsLeftToday} attempt{dv.attemptsLeftToday === 1 ? '' : 's'} left today)
+                </span>
+              )}
+            </div>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="video/*"
+            capture="environment"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) upload(f);
+            }}
+          />
+          <button
+            onClick={() => {
+              haptic('medium');
+              fileRef.current?.click();
+            }}
+            disabled={busy}
+            className="btn-gold w-full py-3 disabled:opacity-60"
+          >
+            {busy ? 'Uploading…' : '🎬 Record & Submit Video'}
+          </button>
         </div>
       )}
     </div>

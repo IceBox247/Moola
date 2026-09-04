@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { upsertUser, sql, approveVideoTask, rejectVideoTask } from '@/lib/db';
+import { upsertUser, sql, approveVideoTask, rejectVideoTask, approveDashboardVideo, rejectDashboardVideo } from '@/lib/db';
+import { game } from '@/lib/config';
 import { sendBotMessage } from '@/lib/telegramBot';
 import { links } from '@/lib/links';
 import { translateText } from '@/lib/translate';
@@ -153,6 +154,38 @@ export async function POST(req: NextRequest) {
         approve
           ? '🎬 Your Moola video was <b>approved</b>! <b>2500 MOOLA</b> has been added to your balance. 🐮'
           : '🎬 Your Moola video wasn’t approved this time. You can submit a new one from the Tasks tab.'
+      );
+    }
+
+    if (data.startsWith('dvid:')) {
+      if (!isAdmin) {
+        await tg('answerCallbackQuery', { callback_query_id: cq.id, text: 'Not authorized' });
+        return NextResponse.json({ ok: true });
+      }
+      const [, action, userId] = data.split(':');
+      const approve = action === 'approve';
+      const reward = game.dashboardVideo.reward;
+      let toast = approve ? 'Approved ✅' : 'Rejected ❌';
+      if (approve) {
+        const r = await approveDashboardVideo(userId);
+        if (!r.credited) toast = r.reason === 'slots full' ? 'All slots filled' : 'Already handled';
+      } else {
+        await rejectDashboardVideo(userId);
+      }
+      await tg('answerCallbackQuery', { callback_query_id: cq.id, text: toast });
+      if (cq.message) {
+        await tg('editMessageCaption', {
+          chat_id: cq.message.chat.id,
+          message_id: cq.message.message_id,
+          parse_mode: 'HTML',
+          caption: `${cq.message.caption ?? ''}\n\n<b>${approve ? `✅ APPROVED — ${reward} MOOLA paid` : '❌ REJECTED'}</b>`,
+        });
+      }
+      await sendBotMessage(
+        userId,
+        approve
+          ? `🎥 Your Moola dashboard video was <b>approved</b>! <b>${reward} MOOLA</b> has been added to your balance. 🐮`
+          : '🎥 Your dashboard video wasn’t approved this time. You can record and submit a new one from the Tasks tab.'
       );
     }
 

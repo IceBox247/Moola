@@ -87,6 +87,16 @@ export type PublicUser = {
     attemptsLeftToday: number;
   } | null;
 
+  dashboardVideo: {
+    status: 'none' | 'pending' | 'approved' | 'rejected';
+    slotsLeft: number;
+    slotsTotal: number;
+    reward: number;
+    script: string;
+    lockedToday: boolean;
+    attemptsLeftToday: number;
+  } | null;
+
   mining: {
     active: boolean;
     startedAt: number | null;
