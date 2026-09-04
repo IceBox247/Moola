@@ -11,6 +11,7 @@ export const links = {
   boost: 'https://t.me/boost/moolaTg',
   dollarBumper: 'https://t.me/DollarBumperBot?start=2071398340',
   whatsapp: 'https://whatsapp.com/channel/0029Vb8WlYEATRSsTEg5qQ2O',
+  moolaSolana: 'https://www.moolas.site/?ref=WFPL2UK6',
   ytVideo: 'https://youtube.com/shorts/f1P5hgx_AHQ',
   ytVideo2: 'https://youtube.com/shorts/Ehh7pPanxEY',
   ttVideo1: 'https://vt.tiktok.com/ZSVom6eue/',
@@ -89,6 +90,8 @@ export function socialLink(kind: string): string {
       return links.dollarBumper;
     case 'whatsapp':
       return links.whatsapp;
+    case 'moola_solana':
+      return links.moolaSolana;
     case 'yt_video':
       return links.ytVideo;
     case 'yt_video2':

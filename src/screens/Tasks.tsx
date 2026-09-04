@@ -135,7 +135,27 @@ export function TasksScreen() {
 
       {tab === 'earn' ? (
         <>
-          <BumperTask done={u.socialDone.includes('join_dollarbumper')} />
+          <FeaturedPartner
+            taskId="join_moola_solana"
+            kind="moola_solana"
+            title="Join Moola Solana Team"
+            subtitle="Our newest partner — join & earn instantly"
+            reward={15}
+            icon="🟣"
+            hero
+            idleCta="Join & Earn"
+            done={u.socialDone.includes('join_moola_solana')}
+          />
+          <FeaturedPartner
+            taskId="join_dollarbumper"
+            kind="dollar_bumper"
+            title="Join DollarBumper Bot"
+            subtitle="Open the bot, tap Start & earn instantly"
+            reward={15}
+            icon="💵"
+            idleCta="Join & Earn"
+            done={u.socialDone.includes('join_dollarbumper')}
+          />
           <DashboardVideoTask />
           <VideoTasks />
           <XTasks />
@@ -146,7 +166,27 @@ export function TasksScreen() {
         </>
       ) : (
         <div className="space-y-3">
-          <BumperTask done={u.socialDone.includes('join_dollarbumper')} />
+          <FeaturedPartner
+            taskId="join_moola_solana"
+            kind="moola_solana"
+            title="Join Moola Solana Team"
+            subtitle="Our newest partner — join & earn instantly"
+            reward={15}
+            icon="🟣"
+            hero
+            idleCta="Join & Earn"
+            done={u.socialDone.includes('join_moola_solana')}
+          />
+          <FeaturedPartner
+            taskId="join_dollarbumper"
+            kind="dollar_bumper"
+            title="Join DollarBumper Bot"
+            subtitle="Open the bot, tap Start & earn instantly"
+            reward={15}
+            icon="💵"
+            idleCta="Join & Earn"
+            done={u.socialDone.includes('join_dollarbumper')}
+          />
           <VideoBounty />
           {SOCIAL.map((s) => (
             <SocialTask key={s.id} task={s} done={u.socialDone.includes(s.id)} />
@@ -846,7 +886,32 @@ function AdOverlay({ type, seconds }: { type: null | 'watch' | 'verify' | 'watch
 }
 
 /** Featured partner task — DollarBumper. Styled to stand out from the list. */
-function BumperTask({ done }: { done: boolean }) {
+/**
+ * Featured partner card — bold, top-of-list. Two-click flow: first tap opens
+ * the partner, second tap claims. `hero` makes it larger (headline partner).
+ * Server credits once from game.social.
+ */
+function FeaturedPartner({
+  taskId,
+  kind,
+  title,
+  subtitle,
+  reward,
+  icon,
+  done,
+  hero,
+  idleCta,
+}: {
+  taskId: string;
+  kind: string;
+  title: string;
+  subtitle: string;
+  reward: number;
+  icon: string;
+  done: boolean;
+  hero?: boolean;
+  idleCta: string;
+}) {
   const { setUser, toast } = useStore();
   const [busy, setBusy] = useState(false);
   const [armed, setArmed] = useState(false);
@@ -856,7 +921,7 @@ function BumperTask({ done }: { done: boolean }) {
     try {
       const res = await api<{ user?: PublicUser; credited?: boolean; needsChannel?: boolean; channelUrl?: string }>(
         'tasks/social',
-        { taskId: 'join_dollarbumper' }
+        { taskId }
       );
       if (channelGated(res)) {
         toast('📣 Join our Telegram channel to earn', 'bad');
@@ -864,7 +929,7 @@ function BumperTask({ done }: { done: boolean }) {
       }
       if (res.user) setUser(res.user);
       notify('success');
-      if (res.credited) toast('+15 MOOLA', 'good');
+      if (res.credited) toast(`+${reward} MOOLA`, 'good');
     } catch (e) {
       toast((e as Error).message, 'bad');
     } finally {
@@ -876,12 +941,12 @@ function BumperTask({ done }: { done: boolean }) {
     if (done || busy) return;
     haptic('medium');
     if (!armed) {
-      openLink(socialLink('dollar_bumper'));
+      openLink(socialLink(kind));
       setBusy(true);
       setTimeout(() => {
         setBusy(false);
         setArmed(true);
-        toast('⏳ Not completed yet — start the bot, then tap Claim', 'bad');
+        toast('⏳ Not completed yet — finish it, then tap Claim', 'bad');
       }, 3000);
       return;
     }
@@ -889,29 +954,39 @@ function BumperTask({ done }: { done: boolean }) {
   }
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-gold-400/40 bg-gradient-to-br from-gold-500/[0.14] via-black/30 to-moo-600/[0.12] p-4 shadow-neon">
-      <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-gold-400/20 blur-2xl" />
+    <div
+      className={`relative overflow-hidden rounded-3xl border border-gold-400/40 bg-gradient-to-br from-gold-500/[0.16] via-black/30 to-moo-600/[0.12] shadow-neon ${
+        hero ? 'p-5' : 'p-4'
+      }`}
+    >
+      <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-gold-400/25 blur-2xl" />
       <div className="relative flex items-center gap-3">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gold-400/15 text-3xl">💵</div>
+        <div
+          className={`flex shrink-0 items-center justify-center rounded-2xl bg-gold-400/15 ${
+            hero ? 'h-16 w-16 text-4xl' : 'h-14 w-14 text-3xl'
+          }`}
+        >
+          {icon}
+        </div>
         <div className="flex-1">
           <div className="mb-0.5 inline-flex items-center rounded-full bg-gold-400/20 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-gold-200">
             ✨ New Partner
           </div>
-          <div className="font-black leading-tight">Join DollarBumper Bot</div>
-          <div className="text-xs text-white/50">Open the bot, tap Start &amp; earn instantly</div>
+          <div className={`font-black leading-tight ${hero ? 'text-xl' : ''}`}>{title}</div>
+          <div className="text-xs text-white/50">{subtitle}</div>
         </div>
       </div>
       <div className="relative mt-3 flex items-center justify-between">
-        <div className="text-lg font-black gold-text">+15 MOOLA</div>
+        <div className={`font-black gold-text ${hero ? 'text-2xl' : 'text-lg'}`}>+{reward} MOOLA</div>
         {done ? (
           <span className="chip bg-moo-500/15 text-moo-300">✓ Done</span>
         ) : (
           <button
             onClick={go}
             disabled={busy}
-            className={`px-7 py-2.5 font-black ${armed ? 'btn-primary' : 'btn-gold'}`}
+            className={`font-black ${hero ? 'px-8 py-3 text-base' : 'px-7 py-2.5'} ${armed ? 'btn-primary' : 'btn-gold'}`}
           >
-            {busy ? '…' : armed ? 'Claim +15' : 'Join & Earn'}
+            {busy ? '…' : armed ? `Claim +${reward}` : idleCta}
           </button>
         )}
       </div>
