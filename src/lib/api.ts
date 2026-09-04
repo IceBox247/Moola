@@ -1,15 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyInitData } from './auth';
-import {
-  upsertUser,
-  getUser,
-  getSocialDone,
-  withdrawnTotal,
-  getVideoTaskState,
-  getDashboardVideoState,
-  lpDistributed,
-  type UserRow,
-} from './db';
+import { upsertUser, getUserBundle, lpDistributed, type UserRow } from './db';
 import { serialize } from './state';
 import { moolaMarketStats } from './stonfi';
 import { lpRewardsEnabled } from './lp';
@@ -74,31 +65,29 @@ export async function channelBlock(userId: string) {
 
 /** Re-fetch a user and return their serialized public state. */
 export async function userResponse(id: string, extra?: Record<string, unknown>) {
-  const u = await getUser(id);
-  if (!u) return unauthorized();
-  const [socialDone, wTotal, stats, videoTask, dashboardVideo, lpDist] = await Promise.all([
-    getSocialDone(id),
-    withdrawnTotal(id),
-    // Live market cap embedded so the dashboard never depends on a separate
-    // fetch (cached 60s server-side; 0 on any error → client falls back).
+  // One batched DB round trip for user + social + withdrawn + both video tasks,
+  // in parallel with the (cached) market stats and LP budget.
+  const [bundle, stats, lpDist] = await Promise.all([
+    getUserBundle(id),
     moolaMarketStats().catch(() => null),
-    getVideoTaskState(id).catch(() => null),
-    getDashboardVideoState(id).catch(() => null),
     lpRewardsEnabled() ? lpDistributed().catch(() => 0) : Promise.resolve(0),
   ]);
+  const u = bundle.user;
+  if (!u) return unauthorized();
+
   const lpCap = game.lpRewards.capMoola;
   return NextResponse.json({
     user: {
-      ...serialize(u, socialDone),
-      withdrawnTotal: wTotal,
+      ...serialize(u, bundle.socialDone),
+      withdrawnTotal: bundle.withdrawnTotal,
       marketCapUsd: stats?.marketCapUsd ?? 0,
       livePriceUsd: stats?.moolaPriceUsd ?? 0,
-      videoTask,
-      dashboardVideo,
+      videoTask: bundle.videoTask,
+      dashboardVideo: bundle.dashboardVideo,
       lpRewardsActive: lpRewardsEnabled() && lpDist < lpCap,
       lpBudgetLeftPct: Math.max(0, Math.min(100, Math.round((1 - lpDist / lpCap) * 100))),
       // First-withdrawal gate (anti multi-account).
-      hasWithdrawn: wTotal > 0,
+      hasWithdrawn: bundle.withdrawnTotal > 0,
       firstWithdrawMin: game.withdraw.firstMin,
       firstWithdrawUnlockAt: u.created_at + game.withdraw.firstAgeHours * 3_600_000,
     },

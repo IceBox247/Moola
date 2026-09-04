@@ -90,7 +90,30 @@ export function ensureSchema(): Promise<void> {
   return schemaPromise;
 }
 
+// Bump this whenever a CREATE/ALTER statement is added to runFullSchema() below.
+// The next cold start then runs the full DDL once and records the marker; every
+// later cold start takes the 1-query fast path instead of ~53 DDL round trips.
+const SCHEMA_VERSION = 'schema_v2026_09_04_a';
+
+/**
+ * Ensure the schema exists. The Neon HTTP driver issues one request PER query,
+ * so running the full DDL on every cold start cost ~53 sequential round trips
+ * (seconds of billed function time). We now check a single marker row first and
+ * skip the DDL entirely once it's present.
+ */
 async function initSchema(): Promise<void> {
+  try {
+    const { rows } = await sql`SELECT 1 FROM migrations WHERE key = ${SCHEMA_VERSION} LIMIT 1;`;
+    if (rows.length) return; // schema already at this version — nothing to do
+  } catch {
+    // `migrations` doesn't exist yet (fresh DB) — fall through to the full init.
+  }
+  await runFullSchema();
+  await sql`CREATE TABLE IF NOT EXISTS migrations (key TEXT PRIMARY KEY, done_at BIGINT NOT NULL);`;
+  await sql`INSERT INTO migrations (key, done_at) VALUES (${SCHEMA_VERSION}, ${nowMs()}) ON CONFLICT DO NOTHING;`;
+}
+
+async function runFullSchema(): Promise<void> {
   await sql`
     CREATE TABLE IF NOT EXISTS users (
       id                TEXT PRIMARY KEY,
@@ -910,6 +933,78 @@ export async function withdrawalStats(): Promise<WithdrawalStats> {
   };
   wdStatsCache = { at: Date.now(), data };
   return data;
+}
+
+/**
+ * Everything userResponse needs about one user, in ONE round trip.
+ *
+ * The Neon HTTP driver sends a separate HTTPS request per query, so the old
+ * shape (getUser + getSocialDone + withdrawnTotal + getVideoTaskState +
+ * getDashboardVideoState) cost 5 sequential round trips on EVERY API call —
+ * the dominant term in function duration (Fluid CPU + provisioned memory).
+ * Sub-selects collapse them into a single request.
+ */
+export type UserBundle = {
+  user: UserRow | null;
+  socialDone: string[];
+  withdrawnTotal: number;
+  videoTask: VideoTaskState;
+  dashboardVideo: DashboardVideoState;
+};
+
+export async function getUserBundle(userId: string): Promise<UserBundle> {
+  await ensureSchema();
+  const [{ rows }, approvedVideos, approvedDash] = await Promise.all([
+    sql`
+      SELECT
+        (SELECT row_to_json(u) FROM users u WHERE u.id = ${userId}) AS usr,
+        (SELECT COALESCE(json_agg(task_id), '[]'::json)
+           FROM social_tasks WHERE user_id = ${userId}) AS social,
+        (SELECT COALESCE(SUM(amount), 0) FROM withdrawals
+           WHERE user_id = ${userId} AND status IN ('pending','processing','paid')) AS wtotal,
+        (SELECT row_to_json(v) FROM video_tasks v WHERE v.user_id = ${userId}) AS video,
+        (SELECT row_to_json(d) FROM dashboard_videos d WHERE d.user_id = ${userId}) AS dash;
+    `,
+    approvedVideoCount(),
+    approvedDashVideoCount(),
+  ]);
+
+  const r = rows[0] ?? {};
+  const usr = r.usr as Record<string, unknown> | null;
+  const social = (r.social as string[] | null) ?? [];
+  const today = dayKey();
+
+  const vRow = r.video as Record<string, unknown> | null;
+  const vMax = game.videoTask.maxRejectsPerDay;
+  const vRejects = vRow && vRow.reject_day === today ? Number(vRow.reject_count ?? 0) : 0;
+
+  const dRow = r.dash as Record<string, unknown> | null;
+  const dMax = game.dashboardVideo.maxRejectsPerDay;
+  const dRejects = dRow && dRow.reject_day === today ? Number(dRow.reject_count ?? 0) : 0;
+
+  return {
+    user: usr ? rowToUser(usr) : null,
+    socialDone: social.map(String),
+    withdrawnTotal: Math.round(Number(r.wtotal ?? 0) * 100) / 100,
+    videoTask: {
+      status: vRow ? (String(vRow.status) as VideoTaskState['status']) : 'none',
+      url: vRow ? String(vRow.url) : null,
+      slotsLeft: Math.max(0, game.videoTask.slots - approvedVideos),
+      slotsTotal: game.videoTask.slots,
+      reward: game.videoTask.reward,
+      lockedToday: vRejects >= vMax,
+      attemptsLeftToday: Math.max(0, vMax - vRejects),
+    },
+    dashboardVideo: {
+      status: dRow ? (String(dRow.status) as DashboardVideoState['status']) : 'none',
+      slotsLeft: Math.max(0, game.dashboardVideo.slots - approvedDash),
+      slotsTotal: game.dashboardVideo.slots,
+      reward: game.dashboardVideo.reward,
+      script: game.dashboardVideo.script,
+      lockedToday: dRejects >= dMax,
+      attemptsLeftToday: Math.max(0, dMax - dRejects),
+    },
+  };
 }
 
 export async function listHistory(userId: string, limit = 40) {

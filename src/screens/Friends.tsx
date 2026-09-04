@@ -13,6 +13,8 @@ import type { FriendData } from '@/lib/types';
 // Module-level cache so re-opening the tab shows last data instantly while it
 // refreshes in the background (no big empty box on every visit).
 let friendsCache: FriendData | null = null;
+let friendsAt = 0;
+const FRIENDS_TTL_MS = 60_000;
 
 export function FriendsScreen() {
   const { toast } = useStore();
@@ -20,6 +22,10 @@ export function FriendsScreen() {
   const [reminding, setReminding] = useState<string | null>(null);
 
   useEffect(() => {
+    // Tabs remount on every switch — serve the cached list and only refetch
+    // when it's actually stale, instead of hitting the API each visit.
+    if (friendsCache && Date.now() - friendsAt < FRIENDS_TTL_MS) return;
+    friendsAt = Date.now();
     api<FriendData>('friends')
       .then((d) => {
         friendsCache = d;

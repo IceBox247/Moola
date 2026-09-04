@@ -166,7 +166,10 @@ export async function settleLpRewards(u: UserRow): Promise<UserRow> {
   return { ...u, lp_usd: nowUsd, lp_settled_at: now };
 }
 
-const RESCAN_INTERVAL_MS = 15 * 60 * 1000;
+// 45 min: each rescan makes several slow external on-chain calls (tonapi /
+// toncenter / STON.fi) that hold the function open — the single most expensive
+// thing /api/me can do. Holdings rarely change faster than this.
+const RESCAN_INTERVAL_MS = 45 * 60 * 1000;
 
 /** Re-verify holdings if the last scan is stale (keeps the boost honest). */
 export async function maybeRescan(u: UserRow, force = false): Promise<UserRow> {

@@ -77,6 +77,14 @@ const KIND_ICON: Record<string, string> = {
   withdraw: '💸',
 };
 
+// Cached across tab remounts so switching tabs doesn't refetch every time.
+const PROFILE_TTL_MS = 60_000;
+const profileCache: { at: number; history: HistoryItem[] | null; withdrawals: WithdrawalItem[] | null } = {
+  at: 0,
+  history: null,
+  withdrawals: null,
+};
+
 export function ProfileScreen({ goMine }: { goMine: () => void }) {
   const { user, setUser, toast } = useStore();
   const [tonUI] = useTonConnectUI();
@@ -87,17 +95,30 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
   const [busy, setBusy] = useState(false);
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [history, setHistory] = useState<HistoryItem[] | null>(null);
-  const [withdrawals, setWithdrawals] = useState<WithdrawalItem[] | null>(null);
-  const [priceUsd, setPriceUsd] = useState<number>(u.livePriceUsd || u.moolaPriceUsd);
+  const [history, setHistory] = useState<HistoryItem[] | null>(profileCache.history);
+  const [withdrawals, setWithdrawals] = useState<WithdrawalItem[] | null>(profileCache.withdrawals);
+  // Price already arrives with the user payload — no extra /api/stats call.
+  const priceUsd = u.livePriceUsd || u.moolaPriceUsd;
 
   useEffect(() => {
-    api<{ items: HistoryItem[] }>('history').then((d) => setHistory(d.items)).catch(() => setHistory([]));
-    api<{ items: WithdrawalItem[] }>('withdrawals').then((d) => setWithdrawals(d.items)).catch(() => setWithdrawals([]));
-    api<{ moolaPriceUsd: number }>('stats')
-      .then((s) => s.moolaPriceUsd > 0 && setPriceUsd(s.moolaPriceUsd))
-      .catch(() => {});
-  }, [u.balance]);
+    // Tabs unmount on switch, so without this cache every visit to Profile
+    // refired these requests. Serve the cached lists instantly and only hit the
+    // API when they're actually stale.
+    if (Date.now() - profileCache.at < PROFILE_TTL_MS && profileCache.history) return;
+    profileCache.at = Date.now();
+    api<{ items: HistoryItem[] }>('history')
+      .then((d) => {
+        profileCache.history = d.items;
+        setHistory(d.items);
+      })
+      .catch(() => setHistory((h) => h ?? []));
+    api<{ items: WithdrawalItem[] }>('withdrawals')
+      .then((d) => {
+        profileCache.withdrawals = d.items;
+        setWithdrawals(d.items);
+      })
+      .catch(() => setWithdrawals((w) => w ?? []));
+  }, []);
 
   // Live USD value of holdings (falls back to the fixed launch-price snapshot).
   const poolUsd = u.balance * priceUsd; // in-app / withdrawable
@@ -170,6 +191,7 @@ export function ProfileScreen({ goMine }: { goMine: () => void }) {
         playSfx('signature');
         toast('✅ Withdrawal requested!', 'good');
         setAmount('');
+        profileCache.at = 0; // force a refresh so the new row shows
       }
     } catch (e) {
       const m = (e as Error).message || 'Withdrawal failed';
