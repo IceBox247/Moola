@@ -90,13 +90,18 @@ class MoolaAudio {
     return this.ctx;
   }
 
-  /** Call from a user gesture. Resumes the context and preloads buffers. */
+  /**
+   * Call from a user gesture. Resumes the context only — we deliberately do NOT
+   * preload here. Bulk-preloading fetched all ~2.1MB of SFX (10 files, incl. a
+   * 1MB loop) on every session, which was a large share of edge requests and
+   * data transfer. play() lazy-loads each clip on first use instead, and the
+   * mining loop loads only when it actually starts.
+   */
   unlock() {
     const ctx = this.ensureCtx();
     if (!ctx) return;
     if (ctx.state === 'suspended') ctx.resume().catch(() => {});
     this.unlocked = true;
-    void this.preload();
   }
 
   private async decode(url: string): Promise<AudioBuffer | null> {
@@ -111,18 +116,12 @@ class MoolaAudio {
     }
   }
 
-  private async preload() {
-    if (this.loading) return;
+  /** Fetch just the mining loop (~1MB) — only when it's actually needed. */
+  private async loadLoop() {
+    if (this.loading || this.loopBuffer) return;
     this.loading = true;
-    await Promise.all(
-      (Object.keys(FILES) as SfxKey[]).map(async (k) => {
-        if (!this.buffers[k]) {
-          const b = await this.decode(FILES[k]);
-          if (b) this.buffers[k] = b;
-        }
-      })
-    );
-    if (!this.loopBuffer) this.loopBuffer = await this.decode(LOOP_FILE);
+    this.loopBuffer = await this.decode(LOOP_FILE);
+    this.loading = false;
     // If a loop was requested before it finished loading, start it now.
     if (this.loopWanted && !this.loopSource) this.startMiningLoop();
   }
@@ -171,7 +170,7 @@ class MoolaAudio {
     if (ctx.state === 'suspended') ctx.resume().catch(() => {});
     if (this.loopSource) return; // already playing
     if (!this.loopBuffer) {
-      void this.preload(); // will auto-start once loaded (loopWanted)
+      void this.loadLoop(); // will auto-start once loaded (loopWanted)
       return;
     }
     const src = ctx.createBufferSource();
