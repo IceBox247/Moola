@@ -583,17 +583,12 @@ function AdTasks() {
   const [howTo, setHowTo] = useState<null | 'watch' | 'verify' | 'watch2'>(null);
   const showBonus = adsgramEnabled();
 
-  // Show the "How to Earn" instructions before launching. Bonus (Adsgram) ads
-  // ALWAYS show it (the compulsory "open the ad" flow); Watch/Verify show it
-  // once per session.
-  const seenHowTo = useRef(false);
+  // Always show the "How to Earn" instructions before launching an ad, so every
+  // user is reminded to tap the Open button inside the ad (that's what actually
+  // pays us). Applies to all three ad types on every tap.
   function start(type: 'watch' | 'verify' | 'watch2') {
     if (!!watching) return;
-    if (type === 'watch2' || !seenHowTo.current) {
-      setHowTo(type);
-      return;
-    }
-    run(type);
+    setHowTo(type);
   }
 
   // Preload the Monetag SDK so the first ad opens instantly.
@@ -740,7 +735,6 @@ function AdTasks() {
         onClose={() => setHowTo(null)}
         onConfirm={() => {
           const t = howTo;
-          seenHowTo.current = true;
           setHowTo(null);
           if (t) run(t);
         }}
