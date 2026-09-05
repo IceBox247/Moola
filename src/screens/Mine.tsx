@@ -218,7 +218,7 @@ export function MineScreen() {
               >
                 {u.atfMult > 1
                   ? `⚡ ${u.atfMult}× ATF boost active ›`
-                  : `🤝 Hold ATF → 64× boost + ${fmtCompact(u.atfBonus)} bonus ›`}
+                  : `🤝 Hold ATF → 16× boost + ${fmtCompact(u.atfBonus)} bonus ›`}
               </button>
             </div>
           </div>
