@@ -93,7 +93,7 @@ export function ensureSchema(): Promise<void> {
 // Bump this whenever a CREATE/ALTER statement is added to runFullSchema() below.
 // The next cold start then runs the full DDL once and records the marker; every
 // later cold start takes the 1-query fast path instead of ~53 DDL round trips.
-const SCHEMA_VERSION = 'schema_v2026_09_04_a';
+const SCHEMA_VERSION = 'schema_v2026_09_05_a';
 
 /**
  * Ensure the schema exists. The Neon HTTP driver issues one request PER query,

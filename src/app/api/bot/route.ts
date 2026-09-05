@@ -365,20 +365,26 @@ export async function POST(req: NextRequest) {
       // Description = the text with the reward token and every URL stripped out.
       let title = afterReward.replace(/https?:\/\/\S+/gi, ' ').replace(/\s+/g, ' ').trim();
       if (!title) title = 'Complete this task';
-      const created: string[] = [];
+      const lines: string[] = [];
+      let ok = 0;
       for (const url of urls) {
         try {
           const t = await addCustomTask(title, url.trim(), reward);
-          created.push(`• <b>${escapeHtml(title)}</b> +${reward} — <code>${escapeHtml(t.id)}</code>`);
-        } catch {
-          created.push(`⚠️ Failed to add: ${escapeHtml(url)}`);
+          ok++;
+          lines.push(`• <b>${escapeHtml(title)}</b> +${reward} — <code>${escapeHtml(t.id)}</code>`);
+        } catch (e) {
+          lines.push(`⚠️ Failed to add: ${escapeHtml(url)} (${escapeHtml((e as Error).message || 'db error')})`);
         }
       }
+      const header =
+        ok === urls.length
+          ? `✅ Added <b>${ok}</b> task${ok === 1 ? '' : 's'} (+${reward} MOOLA each):`
+          : `⚠️ Added <b>${ok}</b> of <b>${urls.length}</b> tasks (+${reward} MOOLA each):`;
       await tg('sendMessage', {
         chat_id: msg.chat.id,
         parse_mode: 'HTML',
         disable_web_page_preview: true,
-        text: `✅ Added <b>${urls.length}</b> task${urls.length === 1 ? '' : 's'} (+${reward} MOOLA each):\n\n${created.join('\n')}`,
+        text: `${header}\n\n${lines.join('\n')}`,
       });
       return NextResponse.json({ ok: true });
     }
