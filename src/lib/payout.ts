@@ -23,10 +23,18 @@ const MOOLA_DECIMALS = 9;
 const JETTON_TRANSFER_OP = 0x0f8a7ea5;
 
 // TON/GRAM attached to each jetton-transfer message. Excess returns to the hot
-// wallet (response_destination); real cost is ~0.03. The gas pre-check below
-// must agree with this value so we never broadcast a transfer that will bounce.
-const MSG_VALUE_TON = 0.1;
-const FWD_VALUE_TON = 0.02;
+// wallet (response_destination), so this is only a ceiling/headroom — it does
+// NOT drive the fee. 0.05 comfortably covers gas plus a first-time recipient
+// jetton-wallet deploy. The gas pre-check below must agree with this value so we
+// never broadcast a transfer that will bounce.
+const MSG_VALUE_TON = 0.05;
+// forward_ton_amount: the TON forwarded to the recipient to trigger their
+// transfer-notification. Unlike MSG_VALUE_TON this is genuinely SPENT every
+// payout (it does not return), so it is the single biggest lever on the fee the
+// wallet displays. 1 nanoton is the standard minimum — enough to still trigger
+// the recipient's notification while costing effectively nothing. (Raising this
+// to e.g. 0.02 TON adds ~0.02 GRAM to every payout for no benefit.)
+const FWD_VALUE_NANO = 1n; // 0.000000001 TON
 // Minimum native (GRAM/TON) balance the hot wallet must hold to safely send one
 // transfer: the message value plus fee/storage headroom.
 const GAS_NEEDED_TON = MSG_VALUE_TON + 0.05;
@@ -162,7 +170,7 @@ export async function sendMoola(toAddress: string, amountMoola: number): Promise
       .storeAddress(dest) // destination (the user)
       .storeAddress(wallet.address) // response destination — excess TON returns to hot wallet
       .storeBit(0) // no custom payload
-      .storeCoins(toNano(String(FWD_VALUE_TON))) // forward TON — recipient's transfer notification
+      .storeCoins(FWD_VALUE_NANO) // forward TON (1 nanoton) — just triggers recipient's notification
       .storeBit(0) // empty forward payload
       .endCell();
 
@@ -175,7 +183,8 @@ export async function sendMoola(toAddress: string, amountMoola: number): Promise
           to: jettonWallet,
           // Ceiling; unused TON returns to the hot wallet (response_destination).
           // Covers gas + a first-time recipient jetton-wallet deploy, so it
-          // won't bounce; real cost stays ~0.03 TON/payout.
+          // won't bounce; with a 1-nanoton forward the real cost is now only
+          // ~0.005-0.01 TON/payout (gas), down from ~0.03-0.05.
           value: toNano(String(MSG_VALUE_TON)),
           body,
           bounce: true,
