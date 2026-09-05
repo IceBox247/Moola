@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { authed, unauthorized, badRequest, userResponse, channelBlock, json } from '@/lib/api';
-import { sql, credit, nowMs } from '@/lib/db';
+import { sql, credit, nowMs, getCustomTaskById } from '@/lib/db';
 import { game } from '@/lib/config';
 import { onUserEarned } from '@/lib/referrals';
 
@@ -14,7 +14,13 @@ export async function POST(req: NextRequest) {
   if (gate) return gate;
 
   const { taskId } = await req.json().catch(() => ({}));
-  const task = game.social.find((s) => s.id === taskId);
+  // Built-in tasks live in game.social; admin-added ones live in custom_tasks.
+  // Both credit into the same social_tasks completion table, keyed by id.
+  const builtin = game.social.find((s) => s.id === taskId);
+  const custom = builtin ? null : await getCustomTaskById(String(taskId ?? ''));
+  const task = builtin ?? (custom && custom.active
+    ? { id: custom.id, title: custom.title, reward: custom.reward, kind: 'custom' as const }
+    : null);
   if (!task) return badRequest('unknown task');
 
   // A channel-join task pays only after Telegram CONFIRMS membership. Stricter

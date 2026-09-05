@@ -147,6 +147,20 @@ async function runFullSchema(): Promise<void> {
       PRIMARY KEY (user_id, task_id)
     );
   `;
+  // Admin-defined social tasks added at runtime via the bot's /addtask command.
+  // Completion is tracked in social_tasks (shared with the built-in tasks); this
+  // table only holds the definition (link + reward + label).
+  await sql`
+    CREATE TABLE IF NOT EXISTS custom_tasks (
+      id         TEXT PRIMARY KEY,
+      title      TEXT NOT NULL,
+      url        TEXT NOT NULL,
+      reward     DOUBLE PRECISION NOT NULL DEFAULT 0,
+      active     BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at BIGINT NOT NULL
+    );
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_custom_tasks_active ON custom_tasks(active, created_at);`;
   await sql`
     CREATE TABLE IF NOT EXISTS transactions (
       id         BIGSERIAL PRIMARY KEY,
@@ -572,6 +586,77 @@ export async function getSocialDone(userId: string): Promise<string[]> {
   return rows.map((r) => String(r.task_id));
 }
 
+// ── Custom (admin-added) social tasks ────────────────────────────────────────
+
+export type CustomTask = { id: string; title: string; url: string; reward: number; active: boolean };
+
+function rowToCustomTask(r: Record<string, unknown>): CustomTask {
+  return {
+    id: String(r.id),
+    title: String(r.title),
+    url: String(r.url),
+    reward: Number(r.reward) || 0,
+    active: !!r.active,
+  };
+}
+
+/** Create a custom social task and return it. `id` is generated. */
+export async function addCustomTask(title: string, url: string, reward: number): Promise<CustomTask> {
+  await ensureSchema();
+  const id = `ct_${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
+  await sql`
+    INSERT INTO custom_tasks (id, title, url, reward, active, created_at)
+    VALUES (${id}, ${title}, ${url}, ${reward}, TRUE, ${nowMs()});
+  `;
+  invalidateCustomTasks();
+  return { id, title, url, reward, active: true };
+}
+
+/** All custom tasks (active + inactive), newest first — for the admin list. */
+export async function listCustomTasks(): Promise<CustomTask[]> {
+  await ensureSchema();
+  const { rows } = await sql`SELECT id, title, url, reward, active FROM custom_tasks ORDER BY created_at DESC;`;
+  return rows.map((r) => rowToCustomTask(r as Record<string, unknown>));
+}
+
+// Active custom tasks are read on nearly every API call (they ride along in the
+// user snapshot), so cache them briefly. addCustomTask/deleteCustomTask bust it.
+let customTasksCache: { at: number; tasks: CustomTask[] } | null = null;
+const CUSTOM_TASKS_TTL_MS = 30_000;
+function invalidateCustomTasks() {
+  customTasksCache = null;
+}
+
+/** Active custom tasks, newest first. Cached ~30s. */
+export async function getActiveCustomTasks(): Promise<CustomTask[]> {
+  await ensureSchema();
+  if (customTasksCache && Date.now() - customTasksCache.at < CUSTOM_TASKS_TTL_MS) {
+    return customTasksCache.tasks;
+  }
+  const { rows } = await sql`
+    SELECT id, title, url, reward, active FROM custom_tasks
+    WHERE active = TRUE ORDER BY created_at DESC;
+  `;
+  const tasks = rows.map((r) => rowToCustomTask(r as Record<string, unknown>));
+  customTasksCache = { at: Date.now(), tasks };
+  return tasks;
+}
+
+/** Look up one custom task by id (active or not) — used to validate a claim. */
+export async function getCustomTaskById(id: string): Promise<CustomTask | null> {
+  await ensureSchema();
+  const { rows } = await sql`SELECT id, title, url, reward, active FROM custom_tasks WHERE id = ${id} LIMIT 1;`;
+  return rows[0] ? rowToCustomTask(rows[0] as Record<string, unknown>) : null;
+}
+
+/** Permanently remove a custom task. Returns whether a row was deleted. */
+export async function deleteCustomTask(id: string): Promise<boolean> {
+  await ensureSchema();
+  const { rowCount } = await sql`DELETE FROM custom_tasks WHERE id = ${id};`;
+  invalidateCustomTasks();
+  return !!rowCount;
+}
+
 // ── Video bounty ────────────────────────────────────────────────────────────
 
 export type VideoTaskState = {
@@ -950,11 +1035,12 @@ export type UserBundle = {
   withdrawnTotal: number;
   videoTask: VideoTaskState;
   dashboardVideo: DashboardVideoState;
+  customTasks: CustomTask[];
 };
 
 export async function getUserBundle(userId: string): Promise<UserBundle> {
   await ensureSchema();
-  const [{ rows }, approvedVideos, approvedDash] = await Promise.all([
+  const [{ rows }, approvedVideos, approvedDash, customTasks] = await Promise.all([
     sql`
       SELECT
         (SELECT row_to_json(u) FROM users u WHERE u.id = ${userId}) AS usr,
@@ -967,6 +1053,7 @@ export async function getUserBundle(userId: string): Promise<UserBundle> {
     `,
     approvedVideoCount(),
     approvedDashVideoCount(),
+    getActiveCustomTasks(),
   ]);
 
   const r = rows[0] ?? {};
@@ -986,6 +1073,7 @@ export async function getUserBundle(userId: string): Promise<UserBundle> {
     user: usr ? rowToUser(usr) : null,
     socialDone: social.map(String),
     withdrawnTotal: Math.round(Number(r.wtotal ?? 0) * 100) / 100,
+    customTasks,
     videoTask: {
       status: vRow ? (String(vRow.status) as VideoTaskState['status']) : 'none',
       url: vRow ? String(vRow.url) : null,

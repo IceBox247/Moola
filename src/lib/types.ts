@@ -77,6 +77,9 @@ export type PublicUser = {
   ownedNfts: string[];
   socialDone: string[];
 
+  // Admin-added social tasks (created at runtime via the bot's /addtask command).
+  customTasks?: { id: string; title: string; url: string; reward: number }[];
+
   videoTask: {
     status: 'none' | 'pending' | 'approved' | 'rejected';
     url: string | null;
