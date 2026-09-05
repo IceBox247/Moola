@@ -42,7 +42,7 @@ export function AtfBoostStep({ onContinue }: { onContinue: () => void }) {
 
         <div className="chip mb-2 border border-gold-400/40 bg-gold-500/[0.1] text-gold-300">🤝 OFFICIAL PARTNER · ATF</div>
         <h1 className="text-[28px] font-black leading-tight tracking-tight">
-          Boost your mining <span className="gold-text">up to 64×</span>
+          Boost your mining <span className="gold-text">up to 16×</span>
         </h1>
         <p className="mt-2 text-sm text-white/60">
           Moola proudly supports <b className="text-white">ATF</b> holders. Connect your TON wallet — if you hold ATF,
@@ -89,7 +89,7 @@ export function AtfBoostStep({ onContinue }: { onContinue: () => void }) {
           </div>
         ) : (
           <div className="mt-5 w-full space-y-2">
-            {[2, 8, 16, 32, 64].map((mult) => {
+            {[1.5, 4, 8, 12, 16].map((mult) => {
               const t = game.atfBoost.tiers.find((x) => x.mult === mult)!;
               return (
                 <div key={mult} className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/[0.03] p-3">
@@ -104,7 +104,7 @@ export function AtfBoostStep({ onContinue }: { onContinue: () => void }) {
               );
             })}
             <p className="pt-1 text-center text-[11px] text-white/40">
-              More ATF, more boost — steps of 2× all the way to 64×.
+              More ATF, more boost — all the way up to 16×.
             </p>
           </div>
         )}

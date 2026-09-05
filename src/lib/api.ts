@@ -84,6 +84,7 @@ export async function userResponse(id: string, extra?: Record<string, unknown>) 
       livePriceUsd: stats?.moolaPriceUsd ?? 0,
       videoTask: bundle.videoTask,
       dashboardVideo: bundle.dashboardVideo,
+      customTasks: bundle.customTasks,
       lpRewardsActive: lpRewardsEnabled() && lpDist < lpCap,
       lpBudgetLeftPct: Math.max(0, Math.min(100, Math.round((1 - lpDist / lpCap) * 100))),
       // First-withdrawal gate (anti multi-account).

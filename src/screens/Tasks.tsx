@@ -188,6 +188,9 @@ export function TasksScreen() {
             done={u.socialDone.includes('join_dollarbumper')}
           />
           <VideoBounty />
+          {(u.customTasks ?? []).map((t) => (
+            <CustomSocialTask key={t.id} task={t} done={u.socialDone.includes(t.id)} />
+          ))}
           {SOCIAL.map((s) => (
             <SocialTask key={s.id} task={s} done={u.socialDone.includes(s.id)} />
           ))}
@@ -1056,6 +1059,81 @@ function SocialTask({
   return (
     <div className="card flex items-center gap-3 p-4">
       <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5 text-2xl">{task.icon}</div>
+      <div className="flex-1">
+        <div className="font-bold">{task.title}</div>
+        <div className="text-xs gold-text font-semibold">+{task.reward} MOOLA</div>
+      </div>
+      {done ? (
+        <span className="chip bg-moo-500/15 text-moo-300">✓ Done</span>
+      ) : (
+        <button
+          onClick={go}
+          disabled={busy}
+          className={`px-5 py-2.5 ${armed ? 'btn-primary' : 'btn-gold'}`}
+        >
+          {busy ? '…' : armed ? 'Claim' : 'Go'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Admin-added social task. Same two-tap flow as SocialTask, but the link comes
+ * straight from the task's `url` (not a fixed `kind`), so tasks created via the
+ * bot's /addtask command open the right page.
+ */
+function CustomSocialTask({
+  task,
+  done,
+}: {
+  task: { id: string; title: string; url: string; reward: number };
+  done: boolean;
+}) {
+  const { setUser, toast } = useStore();
+  const [busy, setBusy] = useState(false);
+  const [armed, setArmed] = useState(false);
+
+  async function credit() {
+    setBusy(true);
+    try {
+      const res = await api<{ user?: PublicUser; credited?: boolean; needsChannel?: boolean; channelUrl?: string }>(
+        'tasks/social',
+        { taskId: task.id }
+      );
+      if (channelGated(res)) {
+        toast('📣 Join our Telegram channel to earn', 'bad');
+        return;
+      }
+      if (res.user) setUser(res.user);
+      notify('success');
+      if (res.credited) toast(`+${task.reward} MOOLA`, 'good');
+    } catch (e) {
+      toast((e as Error).message, 'bad');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function go() {
+    if (done || busy) return;
+    haptic('medium');
+    if (!armed) {
+      openLink(task.url);
+      setBusy(true);
+      setTimeout(() => {
+        setBusy(false);
+        setArmed(true);
+        toast('⏳ Task not completed yet — finish it, then tap Claim', 'bad');
+      }, 3000);
+      return;
+    }
+    credit();
+  }
+
+  return (
+    <div className="card flex items-center gap-3 p-4">
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5 text-2xl">🎯</div>
       <div className="flex-1">
         <div className="font-bold">{task.title}</div>
         <div className="text-xs gold-text font-semibold">+{task.reward} MOOLA</div>

@@ -53,7 +53,7 @@ const SLIDES: Slide[] = [
     round: true,
     accent: 'gold',
     eyebrow: '⚡ PARTNER BOOST',
-    title: <>Hold <span className="gold-text">ATF</span>, mine up to <span className="gold-text">64×</span> faster</>,
+    title: <>Hold <span className="gold-text">ATF</span>, mine up to <span className="gold-text">16×</span> faster</>,
     body: 'Connect your TON wallet — the more ATF you hold, the bigger your mining multiplier. And hold MOOLA to level up your rig, all the way to Level 800.',
   },
   {

@@ -8,6 +8,9 @@ import {
   rejectDashboardVideo,
   withdrawalStats,
   countUsers,
+  addCustomTask,
+  listCustomTasks,
+  deleteCustomTask,
 } from '@/lib/db';
 import { game } from '@/lib/config';
 import { sendBotMessage } from '@/lib/telegramBot';
@@ -330,6 +333,86 @@ export async function POST(req: NextRequest) {
           `👥 Registered users: <b>${fmt(users)}</b>`
         : '⚠️ Could not load stats right now.';
       await tg('sendMessage', { chat_id: msg.chat.id, parse_mode: 'HTML', text: body });
+      return NextResponse.json({ ok: true });
+    }
+
+    // Admin: "/addtask <reward> <description> <url…>" → create one social task
+    // per URL in the message. Reward is the first token; every http(s) link
+    // becomes its own task; the leftover text is the shared description/title.
+    // Works on one line or across many lines (paste a list of links).
+    if (isAdmin && text.startsWith('/addtask')) {
+      const rest = text.slice('/addtask'.length).trim();
+      const rewardTok = rest.split(/\s+/)[0] ?? '';
+      const reward = Number(rewardTok);
+      if (!rest || !Number.isFinite(reward) || reward < 0) {
+        await tg('sendMessage', {
+          chat_id: msg.chat.id,
+          parse_mode: 'HTML',
+          text:
+            '📝 <b>Add social task(s)</b>\n\n' +
+            'Usage: <code>/addtask &lt;reward&gt; &lt;description&gt;</code> then one or more links.\n\n' +
+            'Example:\n<code>/addtask 3 Like, comment and Share\nhttps://facebook.com/...\nhttps://youtu.be/...</code>\n\n' +
+            'Every link becomes its own task with that reward and description.',
+        });
+        return NextResponse.json({ ok: true });
+      }
+      const afterReward = rest.slice(rewardTok.length);
+      const urls = afterReward.match(/https?:\/\/\S+/gi) ?? [];
+      if (!urls.length) {
+        await tg('sendMessage', { chat_id: msg.chat.id, text: 'No links found. Add at least one http(s):// link after the reward.' });
+        return NextResponse.json({ ok: true });
+      }
+      // Description = the text with the reward token and every URL stripped out.
+      let title = afterReward.replace(/https?:\/\/\S+/gi, ' ').replace(/\s+/g, ' ').trim();
+      if (!title) title = 'Complete this task';
+      const created: string[] = [];
+      for (const url of urls) {
+        try {
+          const t = await addCustomTask(title, url.trim(), reward);
+          created.push(`• <b>${escapeHtml(title)}</b> +${reward} — <code>${escapeHtml(t.id)}</code>`);
+        } catch {
+          created.push(`⚠️ Failed to add: ${escapeHtml(url)}`);
+        }
+      }
+      await tg('sendMessage', {
+        chat_id: msg.chat.id,
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        text: `✅ Added <b>${urls.length}</b> task${urls.length === 1 ? '' : 's'} (+${reward} MOOLA each):\n\n${created.join('\n')}`,
+      });
+      return NextResponse.json({ ok: true });
+    }
+
+    // Admin: "/tasks" → list all custom tasks with their ids (for /deltask).
+    if (isAdmin && (text.startsWith('/tasks') || text.startsWith('/listtasks'))) {
+      const tasks = await listCustomTasks().catch(() => []);
+      const body = tasks.length
+        ? `📋 <b>Custom tasks (${tasks.length})</b>\n\n` +
+          tasks
+            .map(
+              (t) =>
+                `${t.active ? '🟢' : '⚪️'} <b>${escapeHtml(t.title)}</b> +${t.reward}\n` +
+                `<a href="${escapeHtml(t.url)}">link</a> · <code>${escapeHtml(t.id)}</code>`
+            )
+            .join('\n\n') +
+          '\n\n<i>Remove one with</i> <code>/deltask &lt;id&gt;</code>'
+        : 'No custom tasks yet. Add some with <code>/addtask &lt;reward&gt; &lt;description&gt; &lt;link&gt;</code>.';
+      await tg('sendMessage', { chat_id: msg.chat.id, parse_mode: 'HTML', disable_web_page_preview: true, text: body });
+      return NextResponse.json({ ok: true });
+    }
+
+    // Admin: "/deltask <id>" → remove a custom task (existing completions stay).
+    if (isAdmin && text.startsWith('/deltask')) {
+      const id = text.slice('/deltask'.length).trim().split(/\s+/)[0] ?? '';
+      if (!id) {
+        await tg('sendMessage', { chat_id: msg.chat.id, text: 'Usage: /deltask <id>   (get ids from /tasks)' });
+        return NextResponse.json({ ok: true });
+      }
+      const ok = await deleteCustomTask(id).catch(() => false);
+      await tg('sendMessage', {
+        chat_id: msg.chat.id,
+        text: ok ? `🗑️ Removed task ${id}.` : `⚠️ No task with id ${id}.`,
+      });
       return NextResponse.json({ ok: true });
     }
 
