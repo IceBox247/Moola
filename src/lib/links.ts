@@ -12,6 +12,8 @@ export const links = {
   dollarBumper: 'https://t.me/DollarBumperBot?start=2071398340',
   whatsapp: 'https://whatsapp.com/channel/0029Vb8WlYEATRSsTEg5qQ2O',
   moolaSolana: 'https://www.moolas.site/?ref=WFPL2UK6',
+  // $2 MOOLA airdrop campaign (external). Override via NEXT_PUBLIC_AIRDROP_URL.
+  airdrop: process.env.NEXT_PUBLIC_AIRDROP_URL || 'https://www.moolas.site/?ref=WFPL2UK6',
   ytVideo: 'https://youtube.com/shorts/f1P5hgx_AHQ',
   ytVideo2: 'https://youtube.com/shorts/Ehh7pPanxEY',
   ttVideo1: 'https://vt.tiktok.com/ZSVom6eue/',

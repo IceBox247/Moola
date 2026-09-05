@@ -135,6 +135,7 @@ export function TasksScreen() {
 
       {tab === 'earn' ? (
         <>
+          <AirdropCampaign />
           <FeaturedPartner
             taskId="join_moola_solana"
             kind="moola_solana"
@@ -166,6 +167,7 @@ export function TasksScreen() {
         </>
       ) : (
         <div className="space-y-3">
+          <AirdropCampaign />
           <FeaturedPartner
             taskId="join_moola_solana"
             kind="moola_solana"
@@ -894,6 +896,49 @@ function AdOverlay({ type, seconds }: { type: null | 'watch' | 'verify' | 'watch
  * the partner, second tap claims. `hero` makes it larger (headline partner).
  * Server credits once from game.social.
  */
+/**
+ * $2 MOOLA airdrop campaign banner — a featured promo at the top of the Tasks
+ * tabs. The artwork already carries the headline/CTA; this adds the step line
+ * and a working Claim button that opens the external campaign (moolas.site).
+ */
+function AirdropCampaign() {
+  function claim() {
+    haptic('heavy');
+    openLink(links.airdrop);
+  }
+  const steps = ['Join', 'Complete the steps', 'Claim your $2'];
+  return (
+    <div className="relative overflow-hidden rounded-3xl border border-moo-400/40 bg-black shadow-neon">
+      <button onClick={claim} className="block w-full" aria-label="Open the $2 MOOLA airdrop">
+        <Image
+          src="/brand/airdrop.webp"
+          alt="Get free $2 in MOOLA — claim your airdrop today"
+          width={1000}
+          height={500}
+          sizes="(max-width: 640px) 100vw, 640px"
+          className="h-auto w-full"
+          priority
+        />
+      </button>
+      <div className="p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs font-bold text-white/70">
+          {steps.map((s, i) => (
+            <span key={s} className="inline-flex items-center gap-2">
+              {i > 0 && <span className="text-moo-400">•</span>}
+              <span>
+                <span className="gold-text">{i + 1}.</span> {s}
+              </span>
+            </span>
+          ))}
+        </div>
+        <button onClick={claim} className="btn-gold w-full py-3 text-base font-black">
+          🎁 Claim Your $2
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function FeaturedPartner({
   taskId,
   kind,
